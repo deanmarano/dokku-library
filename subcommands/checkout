@@ -3,6 +3,9 @@ set -eo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/config"
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/functions"
 
+# Skip command name when called via dokku subcommand auto-discovery
+[[ "${1:-}" == "library:"* ]] && shift
+
 library_app="$1"
 shift || true
 
