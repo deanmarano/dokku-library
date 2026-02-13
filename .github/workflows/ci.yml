@@ -5,15 +5,30 @@ on:
     branches: [main, trunk]
   pull_request:
     branches: [main, trunk]
+    types: [opened, synchronize, reopened, labeled]
 
 jobs:
   changes:
     runs-on: ubuntu-latest
     outputs:
       core: ${{ steps.filter.outputs.core }}
-      manifests: ${{ steps.filter.outputs.manifests }}
+      test-infra: ${{ steps.filter.outputs.test-infra }}
+      force-all: ${{ steps.force.outputs.force }}
+      app-matrix: ${{ steps.matrix.outputs.apps }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Check for force-e2e label
+        id: force
+        run: |
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            echo "force=true" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ contains(github.event.pull_request.labels.*.name, 'force-e2e') }}" == "true" ]]; then
+            echo "force=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "force=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: dorny/paths-filter@v3
         id: filter
         with:
@@ -24,8 +39,109 @@ jobs:
               - 'functions'
               - 'install'
               - 'subcommands/**'
-            manifests:
-              - 'library/**'
+            test-infra:
+              - 'tests/e2e/helpers.ts'
+              - 'tests/e2e/global-setup.ts'
+              - 'tests/e2e/global-teardown.ts'
+              - 'playwright.config.ts'
+              - 'package.json'
+              - 'package-lock.json'
+            ghost:
+              - 'library/ghost/**'
+              - 'tests/e2e/apps/ghost.spec.ts'
+            gitea:
+              - 'library/gitea/**'
+              - 'tests/e2e/apps/gitea.spec.ts'
+            grafana:
+              - 'library/grafana/**'
+              - 'tests/e2e/apps/grafana.spec.ts'
+            uptime-kuma:
+              - 'library/uptime-kuma/**'
+              - 'tests/e2e/apps/uptime-kuma.spec.ts'
+            plausible:
+              - 'library/plausible/**'
+              - 'tests/e2e/apps/plausible.spec.ts'
+            miniflux:
+              - 'library/miniflux/**'
+              - 'tests/e2e/apps/miniflux.spec.ts'
+            wallabag:
+              - 'library/wallabag/**'
+              - 'tests/e2e/apps/wallabag.spec.ts'
+            linkding:
+              - 'library/linkding/**'
+              - 'tests/e2e/apps/linkding.spec.ts'
+            nextcloud:
+              - 'library/nextcloud/**'
+              - 'tests/e2e/apps/nextcloud.spec.ts'
+            jellyfin:
+              - 'library/jellyfin/**'
+              - 'tests/e2e/apps/jellyfin.spec.ts'
+            immich:
+              - 'library/immich/**'
+              - 'tests/e2e/apps/immich.spec.ts'
+            radarr:
+              - 'library/radarr/**'
+              - 'tests/e2e/apps/radarr.spec.ts'
+            sonarr:
+              - 'library/sonarr/**'
+              - 'tests/e2e/apps/sonarr.spec.ts'
+            vaultwarden:
+              - 'library/vaultwarden/**'
+              - 'tests/e2e/apps/vaultwarden.spec.ts'
+            outline:
+              - 'library/outline/**'
+              - 'tests/e2e/apps/outline.spec.ts'
+            bookstack:
+              - 'library/bookstack/**'
+              - 'tests/e2e/apps/bookstack.spec.ts'
+            mealie:
+              - 'library/mealie/**'
+              - 'tests/e2e/apps/mealie.spec.ts'
+            paperless-ngx:
+              - 'library/paperless-ngx/**'
+              - 'tests/e2e/apps/paperless-ngx.spec.ts'
+
+      - name: Build app matrix
+        id: matrix
+        run: |
+          ALL_APPS='["ghost","gitea","grafana","uptime-kuma","plausible","miniflux","wallabag","linkding","nextcloud","jellyfin","immich","radarr","sonarr","vaultwarden","outline","bookstack","mealie","paperless-ngx"]'
+
+          FORCE="${{ steps.force.outputs.force }}"
+          CORE="${{ steps.filter.outputs.core }}"
+          TEST_INFRA="${{ steps.filter.outputs.test-infra }}"
+
+          # If force label, push to main, core changes, or test infra changes → run all
+          if [[ "$FORCE" == "true" || "$CORE" == "true" || "$TEST_INFRA" == "true" ]]; then
+            echo "apps=$ALL_APPS" >> "$GITHUB_OUTPUT"
+            echo "Running all app tests (force=$FORCE, core=$CORE, test-infra=$TEST_INFRA)"
+            exit 0
+          fi
+
+          # Otherwise, only include apps whose files changed
+          APPS="["
+          SEP=""
+          if [[ "${{ steps.filter.outputs.ghost }}" == "true" ]]; then APPS="${APPS}${SEP}\"ghost\""; SEP=","; fi
+          if [[ "${{ steps.filter.outputs.gitea }}" == "true" ]]; then APPS="${APPS}${SEP}\"gitea\""; SEP=","; fi
+          if [[ "${{ steps.filter.outputs.grafana }}" == "true" ]]; then APPS="${APPS}${SEP}\"grafana\""; SEP=","; fi
+          if [[ "${{ steps.filter.outputs.uptime-kuma }}" == "true" ]]; then APPS="${APPS}${SEP}\"uptime-kuma\""; SEP=","; fi
+          if [[ "${{ steps.filter.outputs.plausible }}" == "true" ]]; then APPS="${APPS}${SEP}\"plausible\""; SEP=","; fi
+          if [[ "${{ steps.filter.outputs.miniflux }}" == "true" ]]; then APPS="${APPS}${SEP}\"miniflux\""; SEP=","; fi
+          if [[ "${{ steps.filter.outputs.wallabag }}" == "true" ]]; then APPS="${APPS}${SEP}\"wallabag\""; SEP=","; fi
+          if [[ "${{ steps.filter.outputs.linkding }}" == "true" ]]; then APPS="${APPS}${SEP}\"linkding\""; SEP=","; fi
+          if [[ "${{ steps.filter.outputs.nextcloud }}" == "true" ]]; then APPS="${APPS}${SEP}\"nextcloud\""; SEP=","; fi
+          if [[ "${{ steps.filter.outputs.jellyfin }}" == "true" ]]; then APPS="${APPS}${SEP}\"jellyfin\""; SEP=","; fi
+          if [[ "${{ steps.filter.outputs.immich }}" == "true" ]]; then APPS="${APPS}${SEP}\"immich\""; SEP=","; fi
+          if [[ "${{ steps.filter.outputs.radarr }}" == "true" ]]; then APPS="${APPS}${SEP}\"radarr\""; SEP=","; fi
+          if [[ "${{ steps.filter.outputs.sonarr }}" == "true" ]]; then APPS="${APPS}${SEP}\"sonarr\""; SEP=","; fi
+          if [[ "${{ steps.filter.outputs.vaultwarden }}" == "true" ]]; then APPS="${APPS}${SEP}\"vaultwarden\""; SEP=","; fi
+          if [[ "${{ steps.filter.outputs.outline }}" == "true" ]]; then APPS="${APPS}${SEP}\"outline\""; SEP=","; fi
+          if [[ "${{ steps.filter.outputs.bookstack }}" == "true" ]]; then APPS="${APPS}${SEP}\"bookstack\""; SEP=","; fi
+          if [[ "${{ steps.filter.outputs.mealie }}" == "true" ]]; then APPS="${APPS}${SEP}\"mealie\""; SEP=","; fi
+          if [[ "${{ steps.filter.outputs.paperless-ngx }}" == "true" ]]; then APPS="${APPS}${SEP}\"paperless-ngx\""; SEP=","; fi
+          APPS="${APPS}]"
+
+          echo "apps=$APPS" >> "$GITHUB_OUTPUT"
+          echo "Changed apps: $APPS"
 
   lint:
     runs-on: ubuntu-latest
@@ -191,30 +307,12 @@ jobs:
           sudo docker ps -a 2>/dev/null || true
 
   e2e-app:
-    needs: [lint, unit-tests]
-    if: github.event_name == 'push'
+    needs: [lint, unit-tests, changes]
+    if: ${{ needs.changes.outputs.app-matrix != '[]' }}
     strategy:
       fail-fast: false
       matrix:
-        app:
-          - ghost
-          - gitea
-          - grafana
-          - uptime-kuma
-          - plausible
-          - miniflux
-          - wallabag
-          - linkding
-          - nextcloud
-          - jellyfin
-          - immich
-          - radarr
-          - sonarr
-          - vaultwarden
-          - outline
-          - bookstack
-          - mealie
-          - paperless-ngx
+        app: ${{ fromJson(needs.changes.outputs.app-matrix) }}
     runs-on: ubuntu-22.04
     timeout-minutes: 30
     steps:
