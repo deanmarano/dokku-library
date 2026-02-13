@@ -1,0 +1,43 @@
+{
+  "name": "immich",
+  "description": "Self-hosted photo and video management",
+  "image": "ghcr.io/immich-app/immich-server:release",
+  "url": "https://immich.app",
+  "plugins": {
+    "postgres": { "required": true },
+    "letsencrypt": { "required": false, "default": true },
+    "dokku-mail": { "required": false, "default": false },
+    "dokku-auth": { "required": false, "default": true, "integration": "oidc" }
+  },
+  "env": {
+    "IMMICH_SERVER_URL": "https://%DOMAIN%",
+    "UPLOAD_LOCATION": "/upload",
+    "DB_HOSTNAME": "",
+    "REDIS_HOSTNAME": "localhost"
+  },
+  "prompts": [
+    {
+      "key": "DOMAIN",
+      "question": "Domain for Immich",
+      "default": "immich.%HOSTNAME%",
+      "env_var": null
+    }
+  ],
+  "ports": {
+    "http": 2283
+  },
+  "proxy": {
+    "ports": "http:80:2283"
+  },
+  "healthcheck": {
+    "path": "/api/server/ping",
+    "timeout": 90
+  },
+  "setup": {
+    "post_deploy": []
+  },
+  "storage": [
+    "/var/lib/dokku/data/storage/immich-%APP_NAME%-upload:/upload"
+  ],
+  "docker_options": {}
+}

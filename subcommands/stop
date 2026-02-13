@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -eo pipefail
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/config"
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/functions"
+
+app_name="$1"
+
+if [[ -z "$app_name" ]]; then
+  echo "!     Usage: dokku library:stop <app-name>" >&2
+  exit 1
+fi
+
+if ! is_app_installed "$app_name"; then
+  echo "!     App '$app_name' is not installed via library" >&2
+  exit 1
+fi
+
+echo "-----> Stopping $app_name"
+"$DOKKU_BIN" ps:stop "$app_name"
+echo "       $app_name stopped"

@@ -1,0 +1,42 @@
+{
+  "name": "miniflux",
+  "description": "Minimalist RSS reader",
+  "image": "miniflux/miniflux:latest",
+  "url": "https://miniflux.app",
+  "plugins": {
+    "postgres": { "required": true },
+    "letsencrypt": { "required": false, "default": true },
+    "dokku-mail": { "required": false, "default": false },
+    "dokku-auth": { "required": false, "default": true }
+  },
+  "env": {
+    "RUN_MIGRATIONS": "1",
+    "CREATE_ADMIN": "1",
+    "ADMIN_USERNAME": "admin",
+    "ADMIN_PASSWORD": "%SECRET%",
+    "BASE_URL": "https://%DOMAIN%"
+  },
+  "prompts": [
+    {
+      "key": "DOMAIN",
+      "question": "Domain for Miniflux",
+      "default": "miniflux.%HOSTNAME%",
+      "env_var": null
+    }
+  ],
+  "ports": {
+    "http": 8080
+  },
+  "proxy": {
+    "ports": "http:80:8080"
+  },
+  "healthcheck": {
+    "path": "/healthcheck",
+    "timeout": 60
+  },
+  "setup": {
+    "post_deploy": []
+  },
+  "storage": [],
+  "docker_options": {}
+}

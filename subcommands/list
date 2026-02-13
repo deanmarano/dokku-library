@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+set -eo pipefail
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/config"
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/functions"
+
+show_installed_only=false
+for arg in "$@"; do
+  case "$arg" in
+    --installed) show_installed_only=true ;;
+  esac
+done
+
+if [[ "$show_installed_only" == "true" ]]; then
+  echo "=====> Installed Library Apps"
+  installed_apps="$(get_installed_apps)"
+  if [[ -z "$installed_apps" ]]; then
+    echo "       No apps installed"
+    exit 0
+  fi
+
+  while IFS= read -r app; do
+    manifest_name="$(get_app_state "$app" "MANIFEST_NAME")"
+    domain="$(get_app_state "$app" "DOMAIN")"
+    image="$(get_app_state "$app" "IMAGE")"
+    echo "       $app (${manifest_name:-unknown}) - $domain [image: ${image:-unknown}]"
+  done <<<"$installed_apps"
+else
+  echo "=====> Available Library Apps"
+  printf "       %-20s %-40s %s\n" "NAME" "DESCRIPTION" "STATUS"
+  printf "       %-20s %-40s %s\n" "----" "-----------" "------"
+
+  for app_name in $(get_library_apps | sort); do
+    manifest="$(load_manifest "$app_name")"
+    description="$(get_manifest_field "$manifest" '.description')"
+
+    if is_app_installed "$app_name"; then
+      status="installed"
+    else
+      status="available"
+    fi
+
+    printf "       %-20s %-40s %s\n" "$app_name" "$description" "$status"
+  done
+fi

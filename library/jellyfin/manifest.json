@@ -1,0 +1,38 @@
+{
+  "name": "jellyfin",
+  "description": "Free software media system",
+  "image": "jellyfin/jellyfin:latest",
+  "url": "https://jellyfin.org",
+  "plugins": {
+    "letsencrypt": { "required": false, "default": true },
+    "dokku-auth": { "required": false, "default": true, "integration": "ldap" }
+  },
+  "env": {},
+  "prompts": [
+    {
+      "key": "DOMAIN",
+      "question": "Domain for Jellyfin",
+      "default": "jellyfin.%HOSTNAME%",
+      "env_var": null
+    }
+  ],
+  "ports": {
+    "http": 8096
+  },
+  "proxy": {
+    "ports": "http:80:8096"
+  },
+  "healthcheck": {
+    "path": "/health",
+    "timeout": 60
+  },
+  "setup": {
+    "post_deploy": []
+  },
+  "storage": [
+    "/var/lib/dokku/data/storage/jellyfin-%APP_NAME%-config:/config",
+    "/var/lib/dokku/data/storage/jellyfin-%APP_NAME%-cache:/cache",
+    "/var/lib/dokku/data/storage/jellyfin-%APP_NAME%-media:/media"
+  ],
+  "docker_options": {}
+}

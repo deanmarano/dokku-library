@@ -1,0 +1,46 @@
+{
+  "name": "outline",
+  "description": "Modern team wiki and knowledge base",
+  "image": "outlinewiki/outline:latest",
+  "url": "https://www.getoutline.com",
+  "plugins": {
+    "postgres": { "required": true },
+    "letsencrypt": { "required": false, "default": true },
+    "dokku-mail": { "required": false, "default": true },
+    "dokku-auth": { "required": false, "default": true, "integration": "oidc" }
+  },
+  "env": {
+    "URL": "https://%DOMAIN%",
+    "SECRET_KEY": "%SECRET%",
+    "UTILS_SECRET": "%SECRET%",
+    "FORCE_HTTPS": "true",
+    "PGSSLMODE": "disable",
+    "FILE_STORAGE": "local",
+    "FILE_STORAGE_LOCAL_ROOT_DIR": "/var/lib/outline/data"
+  },
+  "prompts": [
+    {
+      "key": "DOMAIN",
+      "question": "Domain for Outline",
+      "default": "outline.%HOSTNAME%",
+      "env_var": null
+    }
+  ],
+  "ports": {
+    "http": 3000
+  },
+  "proxy": {
+    "ports": "http:80:3000"
+  },
+  "healthcheck": {
+    "path": "/_health",
+    "timeout": 60
+  },
+  "setup": {
+    "post_deploy": []
+  },
+  "storage": [
+    "/var/lib/dokku/data/storage/outline-%APP_NAME%:/var/lib/outline/data"
+  ],
+  "docker_options": {}
+}

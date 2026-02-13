@@ -1,0 +1,132 @@
+#!/usr/bin/env bash
+set -eo pipefail
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/config"
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/functions"
+
+app_name="$1"
+
+if [[ -z "$app_name" ]]; then
+  echo "!     Usage: dokku library:doctor <app-name>" >&2
+  exit 1
+fi
+
+if ! is_app_installed "$app_name"; then
+  echo "!     App '$app_name' is not installed via library" >&2
+  exit 1
+fi
+
+manifest_name="$(get_app_state "$app_name" "MANIFEST_NAME")"
+manifest="$(load_manifest "$manifest_name")"
+has_issues=false
+
+echo "-----> Checking $app_name"
+
+# Check app exists in dokku
+if "$DOKKU_BIN" apps:exists "$app_name" 2>/dev/null; then
+  echo "       [OK] App exists"
+else
+  echo "       [MISSING] App does not exist in dokku"
+  has_issues=true
+fi
+
+# Check image
+expected_image="$(get_app_state "$app_name" "IMAGE")"
+actual_image="$("$DOKKU_BIN" git:report "$app_name" --git-deploy-source 2>/dev/null || echo "")"
+if [[ "$actual_image" == *"$expected_image"* || -z "$actual_image" ]]; then
+  echo "       [OK] Image: $expected_image"
+else
+  echo "       [DRIFT] Image: expected $expected_image, actual $actual_image"
+  has_issues=true
+fi
+
+# Check domain
+expected_domain="$(get_app_state "$app_name" "DOMAIN")"
+actual_domains="$("$DOKKU_BIN" domains:report "$app_name" --domains-app-vhosts 2>/dev/null || echo "")"
+if echo "$actual_domains" | grep -q "$expected_domain"; then
+  echo "       [OK] Domain: $expected_domain"
+else
+  echo "       [DRIFT] Domain: expected $expected_domain, actual $actual_domains"
+  has_issues=true
+fi
+
+# Check proxy ports
+expected_ports="$(get_manifest_field "$manifest" '.proxy.ports // empty')"
+if [[ -n "$expected_ports" ]]; then
+  actual_ports="$("$DOKKU_BIN" ports:report "$app_name" --ports-map 2>/dev/null || echo "")"
+  if echo "$actual_ports" | grep -q "$(echo "$expected_ports" | tr ' ' '\n' | head -1)"; then
+    echo "       [OK] Proxy ports configured"
+  else
+    echo "       [DRIFT] Proxy ports: expected $expected_ports, actual $actual_ports"
+    has_issues=true
+  fi
+fi
+
+# Check environment variables
+env_keys="$(get_manifest_field "$manifest" '.env | keys[]' 2>/dev/null || true)"
+if [[ -n "$env_keys" ]]; then
+  while IFS= read -r key; do
+    expected_value="$(get_app_state "$app_name" "env/$key")"
+    actual_value="$("$DOKKU_BIN" config:get "$app_name" "$key" 2>/dev/null || echo "")"
+
+    if [[ -z "$expected_value" ]]; then
+      continue
+    fi
+
+    if [[ "$actual_value" == "$expected_value" ]]; then
+      echo "       [OK] Env: $key"
+    elif [[ -z "$actual_value" ]]; then
+      echo "       [MISSING] Env: $key not set"
+      has_issues=true
+    else
+      echo "       [DRIFT] Env: $key expected '$expected_value', actual '$actual_value'"
+      has_issues=true
+    fi
+  done <<<"$env_keys"
+fi
+
+# Check postgres
+if [[ -f "$PLUGIN_DATA_ROOT/apps/$app_name/plugins/postgres" ]]; then
+  db_service="$(cat "$PLUGIN_DATA_ROOT/apps/$app_name/plugins/postgres")"
+  if "$DOKKU_BIN" postgres:exists "$db_service" 2>/dev/null; then
+    linked="$("$DOKKU_BIN" postgres:linked "$db_service" "$app_name" 2>/dev/null && echo "yes" || echo "no")"
+    if [[ "$linked" == "yes" ]]; then
+      echo "       [OK] Postgres linked: $db_service"
+    else
+      echo "       [DRIFT] Postgres exists but not linked: $db_service"
+      has_issues=true
+    fi
+  else
+    echo "       [MISSING] Postgres service: $db_service"
+    has_issues=true
+  fi
+fi
+
+# Check letsencrypt
+if [[ -f "$PLUGIN_DATA_ROOT/apps/$app_name/plugins/letsencrypt" ]]; then
+  ssl_enabled="$("$DOKKU_BIN" letsencrypt:active "$app_name" 2>/dev/null && echo "yes" || echo "no")"
+  if [[ "$ssl_enabled" == "yes" ]]; then
+    echo "       [OK] Let's Encrypt enabled"
+  else
+    echo "       [MISSING] Let's Encrypt not enabled"
+    has_issues=true
+  fi
+fi
+
+# Check running
+running="$("$DOKKU_BIN" ps:report "$app_name" --ps-running 2>/dev/null || echo "false")"
+if [[ "$running" == "true" ]]; then
+  echo "       [OK] Running"
+else
+  echo "       [DRIFT] App not running"
+  has_issues=true
+fi
+
+if [[ "$has_issues" == "true" ]]; then
+  echo ""
+  echo "       Issues found. Run 'dokku library:doctor:fix $app_name' to fix."
+  exit 1
+else
+  echo ""
+  echo "       All checks passed!"
+  exit 0
+fi

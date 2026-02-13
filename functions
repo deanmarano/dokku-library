@@ -1,0 +1,122 @@
+#!/usr/bin/env bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/config"
+
+library_help_cmd() {
+  cat <<EOF
+    library:checkout <app>, Install an app from the library
+    library:list [--installed], List available or installed library apps
+    library:status [<app>], Show status of installed app(s)
+    library:info <app>, Show details of a library app
+    library:doctor <app>, Check for drift between expected and actual state
+    library:doctor:fix <app>, Fix drift / apply updates
+    library:stop <app>, Stop an installed app
+    library:restart <app>, Restart an installed app
+    library:cleanup <app> [--force], Remove an installed app and its resources
+    library:update <app>, Update an app to latest image version
+EOF
+}
+
+load_manifest() {
+  local app_name="$1"
+  local manifest_path="$PLUGIN_BASE_PATH/library/$app_name/manifest.json"
+
+  if [[ ! -f "$manifest_path" ]]; then
+    echo "!     App '$app_name' not found in library" >&2
+    return 1
+  fi
+
+  if ! jq empty "$manifest_path" 2>/dev/null; then
+    echo "!     Invalid manifest for '$app_name'" >&2
+    return 1
+  fi
+
+  cat "$manifest_path"
+}
+
+get_manifest_field() {
+  local manifest="$1"
+  local field="$2"
+  echo "$manifest" | jq -r "$field"
+}
+
+get_installed_apps() {
+  if [[ -d "$PLUGIN_DATA_ROOT/apps" ]]; then
+    ls "$PLUGIN_DATA_ROOT/apps" 2>/dev/null || true
+  fi
+}
+
+is_app_installed() {
+  local app_name="$1"
+  [[ -d "$PLUGIN_DATA_ROOT/apps/$app_name" ]]
+}
+
+get_app_state() {
+  local app_name="$1"
+  local key="$2"
+  local state_file="$PLUGIN_DATA_ROOT/apps/$app_name/$key"
+
+  if [[ -f "$state_file" ]]; then
+    cat "$state_file"
+  fi
+}
+
+set_app_state() {
+  local app_name="$1"
+  local key="$2"
+  local value="$3"
+  local state_dir="$PLUGIN_DATA_ROOT/apps/$app_name"
+
+  mkdir -p "$(dirname "$state_dir/$key")"
+  echo "$value" >"$state_dir/$key"
+}
+
+resolve_domain() {
+  local app_name="$1"
+  local domain="$2"
+  local hostname
+
+  hostname="$(hostname -f 2>/dev/null || hostname)"
+
+  domain="${domain//%HOSTNAME%/$hostname}"
+  domain="${domain//%APP_NAME%/$app_name}"
+
+  echo "$domain"
+}
+
+resolve_env_value() {
+  local value="$1"
+  local domain="$2"
+  local app_name="$3"
+  local secret="$4"
+
+  value="${value//%DOMAIN%/$domain}"
+  value="${value//%APP_NAME%/$app_name}"
+  value="${value//%SECRET%/$secret}"
+
+  echo "$value"
+}
+
+check_plugin_available() {
+  local plugin_name="$1"
+
+  if [[ -d "/var/lib/dokku/plugins/available/$plugin_name" ]]; then
+    return 0
+  fi
+  return 1
+}
+
+generate_secret() {
+  local length="${1:-32}"
+  openssl rand -hex "$length"
+}
+
+get_library_apps() {
+  local library_dir="$PLUGIN_BASE_PATH/library"
+  if [[ -d "$library_dir" ]]; then
+    for dir in "$library_dir"/*/; do
+      if [[ -f "${dir}manifest.json" ]]; then
+        basename "$dir"
+      fi
+    done
+  fi
+}

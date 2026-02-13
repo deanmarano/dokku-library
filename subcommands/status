@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+set -eo pipefail
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/config"
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/functions"
+
+app_name="$1"
+
+if [[ -n "$app_name" ]]; then
+  if ! is_app_installed "$app_name"; then
+    echo "!     App '$app_name' is not installed via library" >&2
+    exit 1
+  fi
+
+  echo "=====> Status for $app_name"
+  "$DOKKU_BIN" ps:report "$app_name" 2>/dev/null || echo "       App not found in dokku"
+else
+  echo "=====> Library App Status"
+  installed_apps="$(get_installed_apps)"
+
+  if [[ -z "$installed_apps" ]]; then
+    echo "       No apps installed"
+    exit 0
+  fi
+
+  printf "       %-20s %-30s %s\n" "APP" "DOMAIN" "STATUS"
+  printf "       %-20s %-30s %s\n" "---" "------" "------"
+
+  while IFS= read -r app; do
+    domain="$(get_app_state "$app" "DOMAIN")"
+    running="$("$DOKKU_BIN" ps:report "$app" --ps-running 2>/dev/null || echo "unknown")"
+
+    if [[ "$running" == "true" ]]; then
+      status="running"
+    elif [[ "$running" == "false" ]]; then
+      status="stopped"
+    else
+      status="unknown"
+    fi
+
+    printf "       %-20s %-30s %s\n" "$app" "$domain" "$status"
+  done <<<"$installed_apps"
+fi

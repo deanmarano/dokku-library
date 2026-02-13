@@ -1,0 +1,42 @@
+{
+  "name": "wallabag",
+  "description": "Self-hosted read-it-later app",
+  "image": "wallabag/wallabag:latest",
+  "url": "https://wallabag.org",
+  "plugins": {
+    "postgres": { "required": true },
+    "letsencrypt": { "required": false, "default": true },
+    "dokku-mail": { "required": false, "default": false },
+    "dokku-auth": { "required": false, "default": true }
+  },
+  "env": {
+    "SYMFONY__ENV__DOMAIN_NAME": "https://%DOMAIN%",
+    "SYMFONY__ENV__DATABASE_DRIVER": "pdo_pgsql",
+    "SYMFONY__ENV__SERVER_NAME": "Wallabag",
+    "SYMFONY__ENV__FOSUSER_REGISTRATION": "false",
+    "SYMFONY__ENV__SECRET": "%SECRET%"
+  },
+  "prompts": [
+    {
+      "key": "DOMAIN",
+      "question": "Domain for Wallabag",
+      "default": "wallabag.%HOSTNAME%",
+      "env_var": null
+    }
+  ],
+  "ports": {
+    "http": 80
+  },
+  "proxy": {
+    "ports": "http:80:80"
+  },
+  "healthcheck": {
+    "path": "/",
+    "timeout": 90
+  },
+  "setup": {
+    "post_deploy": []
+  },
+  "storage": [],
+  "docker_options": {}
+}

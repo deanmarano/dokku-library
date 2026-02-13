@@ -1,0 +1,22 @@
+{
+  "name": "dokku-library-tests",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "vitest run",
+    "test:unit": "vitest run tests/unit",
+    "test:e2e": "playwright test --project=integration",
+    "test:e2e:checkout": "playwright test checkout",
+    "test:e2e:doctor": "playwright test doctor",
+    "test:e2e:lifecycle": "playwright test lifecycle",
+    "test:e2e:ghost": "playwright test ghost",
+    "test:e2e:app": "playwright test --project=apps",
+    "test:all": "npm run test:unit && npm run test:e2e"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.40.0",
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.0",
+    "vitest": "^1.0.0"
+  }
+}

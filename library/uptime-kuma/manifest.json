@@ -1,0 +1,36 @@
+{
+  "name": "uptime-kuma",
+  "description": "Self-hosted uptime monitoring tool",
+  "image": "louislam/uptime-kuma:1",
+  "url": "https://uptime.kuma.pet",
+  "plugins": {
+    "letsencrypt": { "required": false, "default": true },
+    "dokku-auth": { "required": false, "default": true }
+  },
+  "env": {},
+  "prompts": [
+    {
+      "key": "DOMAIN",
+      "question": "Domain for Uptime Kuma",
+      "default": "uptime.%HOSTNAME%",
+      "env_var": null
+    }
+  ],
+  "ports": {
+    "http": 3001
+  },
+  "proxy": {
+    "ports": "http:80:3001"
+  },
+  "healthcheck": {
+    "path": "/",
+    "timeout": 60
+  },
+  "setup": {
+    "post_deploy": []
+  },
+  "storage": [
+    "/var/lib/dokku/data/storage/uptime-kuma-%APP_NAME%:/app/data"
+  ],
+  "docker_options": {}
+}

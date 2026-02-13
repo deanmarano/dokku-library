@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+set -eo pipefail
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/config"
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/functions"
+
+app_name="$1"
+
+if [[ -z "$app_name" ]]; then
+  echo "!     Usage: dokku library:update <app-name>" >&2
+  exit 1
+fi
+
+if ! is_app_installed "$app_name"; then
+  echo "!     App '$app_name' is not installed via library" >&2
+  exit 1
+fi
+
+manifest_name="$(get_app_state "$app_name" "MANIFEST_NAME")"
+manifest="$(load_manifest "$manifest_name")"
+
+current_image="$(get_app_state "$app_name" "IMAGE")"
+latest_image="$(get_manifest_field "$manifest" '.image')"
+
+echo "-----> Updating $app_name"
+echo "       Current image: $current_image"
+echo "       Latest image:  $latest_image"
+
+if [[ "$current_image" == "$latest_image" ]]; then
+  echo "       Already on latest image, pulling fresh..."
+fi
+
+echo "-----> Deploying $app_name from image $latest_image"
+"$DOKKU_BIN" git:from-image "$app_name" "$latest_image"
+
+# Update state
+set_app_state "$app_name" "IMAGE" "$latest_image"
+
+echo "=====> $app_name updated successfully"
