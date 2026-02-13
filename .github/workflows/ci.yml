@@ -29,52 +29,59 @@ jobs:
       - name: Run unit tests
         run: npm run test:unit
 
-  # --- E2E jobs below are disabled until fixed one-by-one ---
-  # Known issues:
-  #   1. plugin:enable library doesn't make library:list work (checkout/ghost/doctor)
-  #   2. dokku-auth repo doesn't exist yet (all e2e-app jobs)
-  #
-  # To re-enable, uncomment each job and fix the specific issue first.
+  # --- E2E jobs: enabling one-by-one ---
+  # Known issues remaining:
+  #   - dokku-auth repo doesn't exist yet (all e2e-app jobs)
 
-  # e2e-checkout:
-  #   needs: [lint, unit-tests]
-  #   runs-on: ubuntu-22.04
-  #   timeout-minutes: 30
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - uses: actions/setup-node@v4
-  #       with:
-  #         node-version: "20"
-  #     - name: Install dependencies
-  #       run: npm ci && npx playwright install --with-deps
-  #     - name: Install Dokku
-  #       run: |
-  #         wget -NP . https://packagecloud.io/dokku/dokku/gpgkey
-  #         sudo apt-key add gpgkey
-  #         echo "deb https://packagecloud.io/dokku/dokku/ubuntu/ jammy main" | sudo tee /etc/apt/sources.list.d/dokku.list
-  #         sudo apt-get update
-  #         sudo DEBIAN_FRONTEND=noninteractive apt-get install -y dokku
-  #         sudo dokku plugin:install-dependencies --core
-  #     - name: Install dokku-postgres
-  #       run: sudo dokku plugin:install https://github.com/dokku/dokku-postgres.git postgres
-  #     - name: Install library plugin
-  #       run: |
-  #         sudo ln -s ${{ github.workspace }} /var/lib/dokku/plugins/available/library
-  #         sudo dokku plugin:enable library
-  #     - name: Run checkout e2e tests
-  #       run: npx playwright test checkout
-  #     - name: Upload test results
-  #       uses: actions/upload-artifact@v4
-  #       if: always()
-  #       with:
-  #         name: e2e-checkout-results
-  #         path: playwright-report/
-  #     - name: Collect logs on failure
-  #       if: failure()
-  #       run: |
-  #         sudo dokku apps:list 2>/dev/null || true
-  #         sudo dokku ps:report 2>/dev/null || true
-  #         sudo docker ps -a 2>/dev/null || true
+  e2e-checkout:
+    needs: [lint, unit-tests]
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install dependencies
+        run: npm ci && npx playwright install --with-deps
+      - name: Install Dokku
+        run: |
+          wget -NP . https://packagecloud.io/dokku/dokku/gpgkey
+          sudo apt-key add gpgkey
+          echo "deb https://packagecloud.io/dokku/dokku/ubuntu/ jammy main" | sudo tee /etc/apt/sources.list.d/dokku.list
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y dokku
+          sudo dokku plugin:install-dependencies --core
+      - name: Install dokku-postgres
+        run: sudo dokku plugin:install https://github.com/dokku/dokku-postgres.git postgres
+      - name: Install library plugin
+        run: |
+          sudo cp -r ${{ github.workspace }} /var/lib/dokku/plugins/available/library
+          sudo dokku plugin:enable library
+          sudo dokku plugin:install-dependencies --core
+          # Verify the plugin is registered
+          sudo dokku library:list || echo "Warning: library:list failed, checking paths..."
+          ls -la /var/lib/dokku/plugins/enabled/library/ || true
+      - name: Run checkout e2e tests
+        run: npx playwright test tests/e2e/checkout.spec.ts --project=integration
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-checkout-results
+          path: playwright-report/
+      - name: Collect logs on failure
+        if: failure()
+        run: |
+          echo "=== Plugin paths ==="
+          ls -la /var/lib/dokku/plugins/available/library/ || true
+          ls -la /var/lib/dokku/plugins/enabled/library/ || true
+          echo "=== Try running library:list ==="
+          sudo dokku library:list 2>&1 || true
+          echo "=== Dokku apps ==="
+          sudo dokku apps:list 2>/dev/null || true
+          sudo dokku ps:report 2>/dev/null || true
+          sudo docker ps -a 2>/dev/null || true
 
   # e2e-ghost:
   #   needs: [lint, unit-tests]

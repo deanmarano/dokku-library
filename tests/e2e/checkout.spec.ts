@@ -9,6 +9,8 @@ import {
 } from "./helpers.js";
 
 const APP_NAME = "test-uptime-kuma";
+const LIBRARY_APP = "uptime-kuma";
+const DOMAIN = `${APP_NAME}.test.local`;
 
 test.describe("library:checkout", () => {
   test.afterAll(() => {
@@ -21,7 +23,7 @@ test.describe("library:checkout", () => {
 
     // Checkout uptime-kuma (simplest app - no postgres dependency)
     const output = dokku(
-      `library:checkout uptime-kuma --domain=${APP_NAME}.test.local --no-ssl --non-interactive`,
+      `library:checkout ${LIBRARY_APP} --name=${APP_NAME} --domain=${DOMAIN} --no-ssl --no-auth --non-interactive`,
       { timeout: 300_000 }
     );
 
@@ -51,13 +53,13 @@ test.describe("library:checkout", () => {
 
   test("should show correct info", () => {
     const output = dokku(`library:info ${APP_NAME}`);
-    expect(output).toContain("uptime-kuma");
+    expect(output).toContain(LIBRARY_APP);
     expect(output).toContain("INSTALLED");
   });
 
   test("should reject duplicate checkout", () => {
     const output = dokku(
-      `library:checkout uptime-kuma --domain=${APP_NAME}.test.local --no-ssl --non-interactive`,
+      `library:checkout ${LIBRARY_APP} --name=${APP_NAME} --domain=${DOMAIN} --no-ssl --no-auth --non-interactive`,
       { ignoreError: true }
     );
     expect(output).toContain("already installed");
