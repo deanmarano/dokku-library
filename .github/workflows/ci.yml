@@ -57,11 +57,12 @@ jobs:
       - name: Install library plugin
         run: |
           sudo cp -r ${{ github.workspace }} /var/lib/dokku/plugins/available/library
-          sudo dokku plugin:enable library
+          # plugin:enable exits 10 during bash-completion priming (DOKKU_NOT_IMPLEMENTED_EXIT) — expected
+          sudo dokku plugin:enable library || true
           # Run the plugin install hook to create data directories
           sudo bash /var/lib/dokku/plugins/enabled/library/install
           # Verify the plugin is registered
-          sudo dokku library:list || { echo "library:list failed"; ls -la /var/lib/dokku/plugins/enabled/library/; exit 1; }
+          sudo dokku library:list
       - name: Run checkout e2e tests
         run: npx playwright test tests/e2e/checkout.spec.ts --project=integration
       - name: Upload test results
