@@ -56,7 +56,13 @@ jobs:
         run: sudo dokku plugin:install https://github.com/dokku/dokku-postgres.git postgres
       - name: Install library plugin
         run: |
-          sudo cp -r ${{ github.workspace }} /var/lib/dokku/plugins/available/library
+          # Copy only plugin files (not node_modules, .git, tests, etc.)
+          sudo mkdir -p /var/lib/dokku/plugins/available/library
+          for f in commands config install functions plugin.toml; do
+            sudo cp "${{ github.workspace }}/$f" /var/lib/dokku/plugins/available/library/
+          done
+          sudo cp -r "${{ github.workspace }}/subcommands" /var/lib/dokku/plugins/available/library/
+          sudo cp -r "${{ github.workspace }}/library" /var/lib/dokku/plugins/available/library/
           # plugin:enable exits 10 during bash-completion priming (DOKKU_NOT_IMPLEMENTED_EXIT) — expected
           sudo dokku plugin:enable library || true
           # Run the plugin install hook to create data directories
