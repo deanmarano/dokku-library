@@ -69,6 +69,26 @@ jobs:
           sudo bash /var/lib/dokku/plugins/enabled/library/install
           # Verify the plugin is registered
           sudo dokku library:list
+      - name: Debug checkout (no trace)
+        run: |
+          echo "=== Run checkout without trace ==="
+          sudo dokku library:checkout uptime-kuma --name=debug-kuma --domain=debug-kuma.test.local --no-ssl --no-auth --non-interactive > /tmp/checkout-stdout.txt 2>/tmp/checkout-stderr.txt || true
+          echo "=== EXIT CODE: $? ==="
+          echo "=== STDOUT ==="
+          cat /tmp/checkout-stdout.txt
+          echo "=== STDERR ==="
+          cat /tmp/checkout-stderr.txt
+          echo "=== Apps list ==="
+          sudo dokku apps:list 2>&1 || true
+          echo "=== PS report ==="
+          sudo dokku ps:report debug-kuma 2>&1 || true
+          echo "=== State dir ==="
+          ls -la /var/lib/dokku/services/library/ 2>&1 || true
+          ls -la /var/lib/dokku/services/library/apps/ 2>&1 || true
+          ls -la /var/lib/dokku/services/library/apps/debug-kuma/ 2>&1 || true
+          echo "=== Cleanup ==="
+          sudo dokku apps:destroy debug-kuma --force 2>/dev/null || true
+          sudo rm -rf /var/lib/dokku/services/library/apps/debug-kuma 2>/dev/null || true
       - name: Run checkout e2e tests
         run: npx playwright test tests/e2e/checkout.spec.ts --project=integration
       - name: Upload test results
