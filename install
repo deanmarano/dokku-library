@@ -4,3 +4,4 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/config"
 
 echo "-----> Creating library data directory"
 mkdir -p "$PLUGIN_DATA_ROOT/apps"
+chown -R "${DOKKU_SYSTEM_USER:-dokku}:${DOKKU_SYSTEM_GROUP:-dokku}" "$PLUGIN_DATA_ROOT"
