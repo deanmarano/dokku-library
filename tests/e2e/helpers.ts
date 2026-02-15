@@ -14,6 +14,7 @@ export function dokku(cmd: string, opts: DokkuOptions = {}): string {
       timeout,
       encoding: "utf-8",
       stdio: ["pipe", "pipe", "pipe"],
+      shell: "/bin/bash",
     });
     return result.trim();
   } catch (error: unknown) {
