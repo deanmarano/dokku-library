@@ -172,6 +172,15 @@ if [[ -n "$proxy_ports" ]]; then
   dokku_cmd ports:set "$app_name" "$proxy_ports"
 fi
 
+# Build custom image if Dockerfile exists (e.g. to add database drivers)
+dockerfile_path="$PLUGIN_BASE_PATH/library/$library_app/Dockerfile"
+if [[ -f "$dockerfile_path" ]]; then
+  custom_tag="dokku-library/${library_app}:latest"
+  echo "-----> Building custom image $custom_tag"
+  docker build -t "$custom_tag" "$(dirname "$dockerfile_path")"
+  image="$custom_tag"
+fi
+
 # Deploy from image
 echo "-----> Deploying $app_name from image $image"
 dokku_cmd git:from-image "$app_name" "$image"

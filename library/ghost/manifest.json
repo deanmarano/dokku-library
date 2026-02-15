@@ -4,6 +4,7 @@
   "image": "ghost:5-alpine",
   "url": "https://ghost.org",
   "plugins": {
+    "postgres": { "required": true },
     "letsencrypt": { "required": false, "default": true },
     "dokku-mail": { "required": false, "default": true },
     "dokku-auth": { "required": false, "default": true }
@@ -11,8 +12,8 @@
   "env": {
     "NODE_ENV": "production",
     "url": "https://%DOMAIN%",
-    "database__client": "sqlite3",
-    "database__connection__filename": "/var/lib/ghost/content/data/ghost.db"
+    "database__client": "postgres",
+    "database__connection__filename": ""
   },
   "prompts": [
     {
