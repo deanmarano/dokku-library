@@ -28,7 +28,7 @@ echo "-----> Fixing $app_name"
 if ! dokku_cmd apps:exists "$app_name" 2>/dev/null; then
   echo "       [FIX] Creating app $app_name"
   dokku_cmd apps:create "$app_name"
-  ((fixed_count++))
+  ((++fixed_count))
 fi
 
 # Check domain
@@ -37,7 +37,7 @@ actual_domains="$(dokku_cmd domains:report "$app_name" --domains-app-vhosts 2>/d
 if ! echo "$actual_domains" | grep -q "$expected_domain"; then
   echo "       [FIX] Setting domain: $expected_domain"
   dokku_cmd domains:set "$app_name" "$expected_domain"
-  ((fixed_count++))
+  ((++fixed_count))
 fi
 
 # Check proxy ports
@@ -47,7 +47,7 @@ if [[ -n "$expected_ports" ]]; then
   if ! echo "$actual_ports" | grep -q "$(echo "$expected_ports" | tr ' ' '\n' | head -1)"; then
     echo "       [FIX] Setting proxy ports: $expected_ports"
     dokku_cmd ports:set "$app_name" "$expected_ports"
-    ((fixed_count++))
+    ((++fixed_count))
   fi
 fi
 
@@ -66,7 +66,7 @@ if [[ -n "$env_keys" ]]; then
     if [[ "$actual_value" != "$expected_value" ]]; then
       echo "       [FIX] Setting env: $key"
       env_fix_args="$env_fix_args $key=$expected_value"
-      ((fixed_count++))
+      ((++fixed_count))
     fi
   done <<<"$env_keys"
 
@@ -82,13 +82,13 @@ if [[ -f "$PLUGIN_DATA_ROOT/apps/$app_name/plugins/postgres" ]]; then
   if ! dokku_cmd postgres:exists "$db_service" 2>/dev/null; then
     echo "       [FIX] Creating postgres service: $db_service"
     dokku_cmd postgres:create "$db_service"
-    ((fixed_count++))
+    ((++fixed_count))
   fi
   linked="$(dokku_cmd postgres:linked "$db_service" "$app_name" 2>/dev/null && echo "yes" || echo "no")"
   if [[ "$linked" != "yes" ]]; then
     echo "       [FIX] Linking postgres: $db_service"
     dokku_cmd postgres:link "$db_service" "$app_name" || true
-    ((fixed_count++))
+    ((++fixed_count))
   fi
 fi
 
@@ -98,17 +98,17 @@ if [[ -f "$PLUGIN_DATA_ROOT/apps/$app_name/plugins/letsencrypt" ]]; then
   if [[ "$ssl_enabled" != "yes" ]]; then
     echo "       [FIX] Enabling Let's Encrypt"
     dokku_cmd letsencrypt:enable "$app_name" || echo "       Warning: letsencrypt setup failed"
-    ((fixed_count++))
+    ((++fixed_count))
   fi
 fi
 
 # Check image and redeploy if needed
 expected_image="$(get_app_state "$app_name" "IMAGE")"
-actual_image="$(dokku_cmd git:report "$app_name" --git-deploy-source 2>/dev/null || echo "")"
+actual_image="$(dokku_cmd git:report "$app_name" --git-source-image 2>/dev/null || echo "")"
 if [[ -n "$expected_image" && "$actual_image" != *"$expected_image"* ]]; then
   echo "       [FIX] Redeploying with image: $expected_image"
   dokku_cmd git:from-image "$app_name" "$expected_image"
-  ((fixed_count++))
+  ((++fixed_count))
 fi
 
 # Check running
@@ -116,7 +116,7 @@ running="$(dokku_cmd ps:report "$app_name" --running 2>/dev/null || echo "false"
 if [[ "$running" != "true" ]]; then
   echo "       [FIX] Starting app"
   dokku_cmd ps:start "$app_name"
-  ((fixed_count++))
+  ((++fixed_count))
 fi
 
 if [[ "$fixed_count" -gt 0 ]]; then

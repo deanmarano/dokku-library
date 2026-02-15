@@ -34,7 +34,7 @@ fi
 
 # Check image
 expected_image="$(get_app_state "$app_name" "IMAGE")"
-actual_image="$(dokku_cmd git:report "$app_name" --git-deploy-source 2>/dev/null || echo "")"
+actual_image="$(dokku_cmd git:report "$app_name" --git-source-image 2>/dev/null || echo "")"
 if [[ "$actual_image" == *"$expected_image"* || -z "$actual_image" ]]; then
   echo "       [OK] Image: $expected_image"
 else
