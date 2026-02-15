@@ -6,6 +6,24 @@ export interface DokkuOptions {
   ignoreError?: boolean;
 }
 
+/**
+ * Check if stderr contains only basher/plugn dispatch noise (not real errors).
+ * dokku's plugn trigger mechanism produces spurious "main: command not found"
+ * errors from /home/dokku/.basher/bash when invoked from non-shell contexts.
+ */
+function isBasherNoiseOnly(stderr: string): boolean {
+  const lines = stderr
+    .trim()
+    .split("\n")
+    .filter((l) => l.trim());
+  return (
+    lines.length > 0 &&
+    lines.every(
+      (l) => l.includes(".basher/bash") && l.includes("command not found")
+    )
+  );
+}
+
 export function dokku(cmd: string, opts: DokkuOptions = {}): string {
   const { timeout = 120_000, ignoreError = false } = opts;
   const args = cmd.split(/\s+/);
@@ -23,6 +41,10 @@ export function dokku(cmd: string, opts: DokkuOptions = {}): string {
   }
 
   if (result.status !== 0) {
+    // Tolerate spurious basher/plugn dispatch errors
+    if (isBasherNoiseOnly(result.stderr || "")) {
+      return (result.stdout || "").trim();
+    }
     if (ignoreError) {
       return (result.stdout || result.stderr || "").trim();
     }
