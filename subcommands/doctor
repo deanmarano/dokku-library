@@ -104,6 +104,23 @@ if [[ -f "$PLUGIN_DATA_ROOT/apps/$app_name/plugins/postgres" ]]; then
   fi
 fi
 
+# Check mariadb
+if [[ -f "$PLUGIN_DATA_ROOT/apps/$app_name/plugins/mariadb" ]]; then
+  db_service="$(cat "$PLUGIN_DATA_ROOT/apps/$app_name/plugins/mariadb")"
+  if dokku_cmd mariadb:exists "$db_service" 2>/dev/null; then
+    linked="$(dokku_cmd mariadb:linked "$db_service" "$app_name" 2>/dev/null && echo "yes" || echo "no")"
+    if [[ "$linked" == "yes" ]]; then
+      echo "       [OK] MariaDB linked: $db_service"
+    else
+      echo "       [DRIFT] MariaDB exists but not linked: $db_service"
+      has_issues=true
+    fi
+  else
+    echo "       [MISSING] MariaDB service: $db_service"
+    has_issues=true
+  fi
+fi
+
 # Check letsencrypt
 if [[ -f "$PLUGIN_DATA_ROOT/apps/$app_name/plugins/letsencrypt" ]]; then
   ssl_enabled="$(dokku_cmd letsencrypt:active "$app_name" 2>/dev/null && echo "yes" || echo "no")"

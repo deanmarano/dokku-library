@@ -92,6 +92,22 @@ if [[ -f "$PLUGIN_DATA_ROOT/apps/$app_name/plugins/postgres" ]]; then
   fi
 fi
 
+# Check mariadb
+if [[ -f "$PLUGIN_DATA_ROOT/apps/$app_name/plugins/mariadb" ]]; then
+  db_service="$(cat "$PLUGIN_DATA_ROOT/apps/$app_name/plugins/mariadb")"
+  if ! dokku_cmd mariadb:exists "$db_service" 2>/dev/null; then
+    echo "       [FIX] Creating mariadb service: $db_service"
+    dokku_cmd mariadb:create "$db_service"
+    ((++fixed_count))
+  fi
+  linked="$(dokku_cmd mariadb:linked "$db_service" "$app_name" 2>/dev/null && echo "yes" || echo "no")"
+  if [[ "$linked" != "yes" ]]; then
+    echo "       [FIX] Linking mariadb: $db_service"
+    dokku_cmd mariadb:link "$db_service" "$app_name" || true
+    ((++fixed_count))
+  fi
+fi
+
 # Check letsencrypt
 if [[ -f "$PLUGIN_DATA_ROOT/apps/$app_name/plugins/letsencrypt" ]]; then
   ssl_enabled="$(dokku_cmd letsencrypt:active "$app_name" 2>/dev/null && echo "yes" || echo "no")"

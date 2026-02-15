@@ -21,5 +21,13 @@ export default function globalSetup() {
     );
   }
 
+  if (pluginAvailable("mariadb")) {
+    console.log("  [OK] mariadb plugin available");
+  } else {
+    console.log(
+      "  [WARN] mariadb plugin not available - mariadb-dependent tests will be skipped"
+    );
+  }
+
   console.log("Global setup complete.");
 }

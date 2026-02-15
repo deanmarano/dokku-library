@@ -11,9 +11,9 @@ import {
 
 const APP_NAME = "test-ghost";
 
-test.describe("library:checkout ghost (with postgres)", () => {
+test.describe("library:checkout ghost (with mariadb)", () => {
   test.beforeAll(() => {
-    test.skip(!pluginAvailable("postgres"), "postgres plugin not available");
+    test.skip(!pluginAvailable("mariadb"), "mariadb plugin not available");
 
     // In CI, the app is pre-deployed by a bash step (Node.js can't run git:from-image).
     // Locally, deploy if the app doesn't exist yet.
@@ -29,9 +29,9 @@ test.describe("library:checkout ghost (with postgres)", () => {
     cleanupApp(APP_NAME);
   });
 
-  test("should have postgres service created and linked", () => {
+  test("should have mariadb service created and linked", () => {
     const dbService = `${APP_NAME}-db`;
-    const exists = dokku(`postgres:exists ${dbService}`, { ignoreError: true });
+    const exists = dokku(`mariadb:exists ${dbService}`, { ignoreError: true });
     expect(exists).not.toContain("does not exist");
   });
 
@@ -46,11 +46,11 @@ test.describe("library:checkout ghost (with postgres)", () => {
     expect(reachable).toBe(true);
   });
 
-  test("cleanup should destroy postgres too", () => {
+  test("cleanup should destroy mariadb too", () => {
     const output = dokku(`library:cleanup ${APP_NAME} --force`, {
       timeout: 120_000,
     });
     expect(output).toContain("cleaned up successfully");
-    expect(output).toContain("PostgreSQL");
+    expect(output).toContain("MariaDB");
   });
 });

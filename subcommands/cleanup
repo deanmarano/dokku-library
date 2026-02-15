@@ -48,6 +48,14 @@ if [[ -f "$PLUGIN_DATA_ROOT/apps/$app_name/plugins/postgres" ]]; then
   dokku_cmd postgres:destroy "$db_service" -f 2>/dev/null || true
 fi
 
+# Unlink and destroy mariadb
+if [[ -f "$PLUGIN_DATA_ROOT/apps/$app_name/plugins/mariadb" ]]; then
+  db_service="$(cat "$PLUGIN_DATA_ROOT/apps/$app_name/plugins/mariadb")"
+  echo "       Removing MariaDB: $db_service"
+  dokku_cmd mariadb:unlink "$db_service" "$app_name" 2>/dev/null || true
+  dokku_cmd mariadb:destroy "$db_service" -f 2>/dev/null || true
+fi
+
 # Unlink mail
 if [[ -f "$PLUGIN_DATA_ROOT/apps/$app_name/plugins/dokku-mail" ]]; then
   mail_service="$(cat "$PLUGIN_DATA_ROOT/apps/$app_name/plugins/dokku-mail")"

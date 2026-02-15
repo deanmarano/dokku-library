@@ -28,7 +28,7 @@ if [[ -f "$manifest_path" ]]; then
 
   # Show required plugins
   echo "       Plugins:"
-  for plugin in postgres letsencrypt dokku-mail dokku-auth; do
+  for plugin in postgres mariadb letsencrypt dokku-mail dokku-auth; do
     required="$(get_manifest_field "$manifest" ".plugins[\"$plugin\"].required // false")"
     default="$(get_manifest_field "$manifest" ".plugins[\"$plugin\"].default // false")"
     if [[ "$required" == "true" ]]; then

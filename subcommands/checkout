@@ -131,6 +131,36 @@ if [[ "$postgres_required" == "true" || "$postgres_default" == "true" ]]; then
   fi
 fi
 
+# MariaDB
+mariadb_required="$(get_manifest_field "$manifest" '.plugins.mariadb.required // false')"
+mariadb_default="$(get_manifest_field "$manifest" '.plugins.mariadb.default // false')"
+if [[ "$mariadb_required" == "true" || "$mariadb_default" == "true" ]]; then
+  if check_plugin_available "mariadb"; then
+    db_service="${app_name}-db"
+    echo "       Setting up MariaDB: $db_service"
+    dokku_cmd mariadb:create "$db_service" || true
+    dokku_cmd mariadb:link "$db_service" "$app_name" || true
+    set_app_state "$app_name" "plugins/mariadb" "$db_service"
+
+    # If the manifest specifies a connection_env, copy DATABASE_URL to that env var
+    connection_env="$(get_manifest_field "$manifest" '.plugins.mariadb.connection_env // empty')"
+    if [[ -n "$connection_env" ]]; then
+      db_url="$(dokku_cmd config:get "$app_name" "DATABASE_URL" 2>/dev/null || echo "")"
+      if [[ -n "$db_url" ]]; then
+        echo "       Setting $connection_env from DATABASE_URL"
+        dokku_cmd config:set --no-restart "$app_name" "$connection_env=$db_url"
+      fi
+    fi
+  else
+    if [[ "$mariadb_required" == "true" ]]; then
+      echo "!     MariaDB plugin required but not installed" >&2
+      dokku_cmd apps:destroy "$app_name" --force
+      exit 1
+    fi
+    echo "       MariaDB plugin not available, skipping"
+  fi
+fi
+
 # Set environment variables
 echo "-----> Setting environment variables"
 env_keys="$(get_manifest_field "$manifest" '.env | keys[]' 2>/dev/null || true)"
