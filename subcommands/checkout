@@ -110,6 +110,17 @@ if [[ "$postgres_required" == "true" || "$postgres_default" == "true" ]]; then
     dokku_cmd postgres:create "$db_service" || true
     dokku_cmd postgres:link "$db_service" "$app_name" || true
     set_app_state "$app_name" "plugins/postgres" "$db_service"
+
+    # If the manifest specifies a connection_env, copy DATABASE_URL to that env var
+    # (e.g. Ghost/Knex needs database__connection instead of DATABASE_URL)
+    connection_env="$(get_manifest_field "$manifest" '.plugins.postgres.connection_env // empty')"
+    if [[ -n "$connection_env" ]]; then
+      db_url="$(dokku_cmd config:get "$app_name" "DATABASE_URL" 2>/dev/null || echo "")"
+      if [[ -n "$db_url" ]]; then
+        echo "       Setting $connection_env from DATABASE_URL"
+        dokku_cmd config:set --no-restart "$app_name" "$connection_env=$db_url"
+      fi
+    fi
   else
     if [[ "$postgres_required" == "true" ]]; then
       echo "!     PostgreSQL plugin required but not installed" >&2
