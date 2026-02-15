@@ -46,6 +46,16 @@ test.describe("library:checkout ghost (with mariadb)", () => {
     expect(reachable).toBe(true);
   });
 
+  test("should serve Ghost content", async () => {
+    const url = getAppUrl(APP_NAME);
+    const response = await fetch(url, {
+      signal: AbortSignal.timeout(10_000),
+    });
+    const body = await response.text();
+    // Fresh Ghost installs include the generator meta tag
+    expect(body).toContain('<meta name="generator" content="Ghost');
+  });
+
   test("cleanup should destroy mariadb too", () => {
     const output = dokku(`library:cleanup ${APP_NAME} --force`, {
       timeout: 120_000,
