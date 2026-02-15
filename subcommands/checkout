@@ -167,19 +167,7 @@ done
 
 # Deploy from image
 echo "-----> Deploying $app_name from image $image"
-deploy_rc=0
-# Capture stdout+stderr together to see any error messages from git:from-image
-deploy_output=$("$DOKKU_BIN" git:from-image "$app_name" "$image" 2>&1) || deploy_rc=$?
-echo "$deploy_output"
-if [[ $deploy_rc -ne 0 ]]; then
-  echo "       DEBUG: git:from-image exited $deploy_rc" >&2
-  echo "       DEBUG: output was: $deploy_output" >&2
-  # Tolerate exit 127 (basher dispatch noise) if deployment actually happened
-  if [[ $deploy_rc -ne 127 ]] && ! echo "$deploy_output" | grep -q "Application deployed"; then
-    echo "!     Deployment failed (exit $deploy_rc)" >&2
-    exit 1
-  fi
-fi
+dokku_cmd git:from-image "$app_name" "$image"
 
 # Set proxy ports (after deploy so web process type exists)
 proxy_ports="$(get_manifest_field "$manifest" '.proxy.ports // empty')"
