@@ -1,4 +1,4 @@
-import { execSync } from "node:child_process";
+import { execSync, spawnSync } from "node:child_process";
 import type { Page } from "@playwright/test";
 
 export interface DokkuOptions {
@@ -8,22 +8,34 @@ export interface DokkuOptions {
 
 export function dokku(cmd: string, opts: DokkuOptions = {}): string {
   const { timeout = 120_000, ignoreError = false } = opts;
-  const fullCmd = `sudo dokku ${cmd}`;
-  try {
-    const result = execSync(fullCmd, {
-      timeout,
-      encoding: "utf-8",
-      stdio: ["pipe", "pipe", "pipe"],
-      shell: "/bin/bash",
-    });
-    return result.trim();
-  } catch (error: unknown) {
+  const args = cmd.split(/\s+/);
+  const result = spawnSync("sudo", ["dokku", ...args], {
+    timeout,
+    encoding: "utf-8",
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+
+  if (result.error) {
     if (ignoreError) {
-      const err = error as { stdout?: string; stderr?: string };
-      return (err.stdout || err.stderr || "").trim();
+      return (result.stdout || result.stderr || "").trim();
     }
+    throw result.error;
+  }
+
+  if (result.status !== 0) {
+    if (ignoreError) {
+      return (result.stdout || result.stderr || "").trim();
+    }
+    const error = new Error(
+      `Command failed: sudo dokku ${cmd}\n${result.stderr}`
+    );
+    (error as any).stdout = result.stdout;
+    (error as any).stderr = result.stderr;
+    (error as any).status = result.status;
     throw error;
   }
+
+  return (result.stdout || "").trim();
 }
 
 export function waitForHealthy(
