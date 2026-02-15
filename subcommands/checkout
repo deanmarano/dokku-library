@@ -165,16 +165,16 @@ for phase in deploy run; do
   fi
 done
 
-# Deploy from image
-echo "-----> Deploying $app_name from image $image"
-dokku_cmd git:from-image "$app_name" "$image"
-
-# Set proxy ports (after deploy so web process type exists)
+# Set proxy ports before deploy so the initial deployment uses the correct port mapping
 proxy_ports="$(get_manifest_field "$manifest" '.proxy.ports // empty')"
 if [[ -n "$proxy_ports" ]]; then
   echo "-----> Setting proxy ports: $proxy_ports"
   dokku_cmd ports:set "$app_name" "$proxy_ports"
 fi
+
+# Deploy from image
+echo "-----> Deploying $app_name from image $image"
+dokku_cmd git:from-image "$app_name" "$image"
 
 # Run post-deploy commands
 post_deploy_count="$(get_manifest_field "$manifest" '.setup.post_deploy | length' 2>/dev/null || echo 0)"

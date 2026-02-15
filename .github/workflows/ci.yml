@@ -80,6 +80,26 @@ jobs:
             --name=test-uptime-kuma \
             --domain=test-uptime-kuma.test.local \
             --no-ssl --no-auth --non-interactive
+      - name: Verify deployment state
+        run: |
+          echo "=== Dokku version ==="
+          dokku version || true
+          echo "=== App exists? ==="
+          sudo dokku apps:exists test-uptime-kuma && echo "YES" || echo "NO"
+          echo "=== ps:report ==="
+          sudo dokku ps:report test-uptime-kuma 2>&1 || true
+          echo "=== Docker containers ==="
+          sudo docker ps -a 2>&1 || true
+          echo "=== Library state directory ==="
+          ls -laR /var/lib/dokku/services/library/apps/test-uptime-kuma/ 2>&1 || echo "STATE DIR MISSING"
+          echo "=== Ports config ==="
+          sudo dokku ports:report test-uptime-kuma 2>&1 || true
+          echo "=== Proxy config ==="
+          sudo dokku proxy:report test-uptime-kuma 2>&1 || true
+          echo "=== Nginx config ==="
+          sudo cat /home/dokku/test-uptime-kuma/nginx.conf 2>&1 || echo "No nginx.conf"
+          echo "=== DEPLOYED flag ==="
+          ls -la /home/dokku/test-uptime-kuma/DEPLOYED 2>&1 || echo "DEPLOYED file missing"
       - name: Run checkout e2e tests
         run: npx playwright test tests/e2e/checkout.spec.ts --project=integration
       - name: Upload test results
@@ -96,10 +116,23 @@ jobs:
           ls -la /var/lib/dokku/plugins/enabled/library/ || true
           echo "=== Try running library:list ==="
           sudo dokku library:list 2>&1 || true
+          echo "=== Try running library:list --installed ==="
+          sudo dokku library:list --installed 2>&1 || true
           echo "=== Dokku apps ==="
           sudo dokku apps:list 2>/dev/null || true
+          echo "=== ps:report ==="
           sudo dokku ps:report 2>/dev/null || true
+          echo "=== Docker containers ==="
           sudo docker ps -a 2>/dev/null || true
+          echo "=== Docker logs ==="
+          for container in $(sudo docker ps -aq 2>/dev/null); do
+            echo "--- Container $container ---"
+            sudo docker logs --tail 50 "$container" 2>/dev/null || true
+          done
+          echo "=== Library state ==="
+          ls -laR /var/lib/dokku/services/library/apps/ 2>&1 || echo "No state dir"
+          echo "=== DEPLOYED flag ==="
+          ls -la /home/dokku/test-uptime-kuma/DEPLOYED 2>&1 || echo "DEPLOYED file missing"
 
   # e2e-ghost:
   #   needs: [lint, unit-tests]
