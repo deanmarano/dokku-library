@@ -56,36 +56,21 @@ jobs:
         run: sudo dokku plugin:install https://github.com/dokku/dokku-postgres.git postgres
       - name: Install library plugin
         run: |
-          # Ensure basher directory exists with proper permissions for plugn dispatch
-          sudo mkdir -p /home/dokku/.basher
-          sudo chown -R dokku:dokku /home/dokku/.basher
-          # Symlink workspace as plugin (standard dokku plugin installation method)
-          sudo ln -sf "${{ github.workspace }}" /var/lib/dokku/plugins/available/library
+          # Create plugin directory and copy essential files
+          sudo mkdir -p /var/lib/dokku/plugins/available/library/subcommands
+          sudo mkdir -p /var/lib/dokku/plugins/available/library/library
+          sudo cp commands config functions install plugin.toml /var/lib/dokku/plugins/available/library/
+          sudo cp subcommands/* /var/lib/dokku/plugins/available/library/subcommands/
+          sudo cp -r library/* /var/lib/dokku/plugins/available/library/library/
+          # Make scripts executable
+          sudo chmod +x /var/lib/dokku/plugins/available/library/commands
+          sudo chmod +x /var/lib/dokku/plugins/available/library/subcommands/*
           # plugin:enable exits 10 during bash-completion priming (DOKKU_NOT_IMPLEMENTED_EXIT) — expected
           sudo dokku plugin:enable library || true
           # Run the plugin install hook to create data directories
           sudo bash /var/lib/dokku/plugins/enabled/library/install
           # Verify the plugin is registered
           sudo dokku library:list
-      - name: Test checkout via Node.js
-        run: |
-          node -e "
-            const { spawnSync } = require('child_process');
-            const result = spawnSync('sudo', ['dokku', 'library:checkout', 'uptime-kuma', '--name=debug-kuma', '--domain=debug-kuma.test.local', '--no-ssl', '--no-auth', '--non-interactive'], {
-              timeout: 300000,
-              encoding: 'utf-8',
-              stdio: ['pipe', 'pipe', 'pipe'],
-            });
-            console.log('EXIT CODE:', result.status);
-            console.log('STDOUT (last 1000 chars):', (result.stdout || '').slice(-1000));
-            console.log('STDERR:', result.stderr);
-          "
-          # Verify basher directory
-          echo "=== basher directory ==="
-          sudo ls -la /home/dokku/.basher/ || true
-          # Cleanup
-          sudo dokku apps:destroy debug-kuma --force 2>/dev/null || true
-          sudo rm -rf /var/lib/dokku/services/library/apps/debug-kuma 2>/dev/null || true
       - name: Run checkout e2e tests
         run: npx playwright test tests/e2e/checkout.spec.ts --project=integration
       - name: Upload test results

@@ -7,31 +7,26 @@ export interface DokkuOptions {
 }
 
 /**
- * Check if stderr contains only basher/plugn dispatch noise (not real errors).
- * dokku's plugn trigger mechanism produces spurious "main: command not found"
- * errors from /home/dokku/.basher/bash when invoked from non-shell contexts.
+ * Run a dokku command via sudo.
+ *
+ * We invoke dokku through `bash -c` rather than directly because dokku's
+ * plugn dispatcher uses go-basher, which requires a bash parent process.
+ * When Node.js spawns `sudo dokku ...` directly, go-basher fails with
+ * "main: command not found" errors. Running through bash fixes this.
  */
-function isBasherNoiseOnly(stderr: string): boolean {
-  const lines = stderr
-    .trim()
-    .split("\n")
-    .filter((l) => l.trim());
-  return (
-    lines.length > 0 &&
-    lines.every(
-      (l) => l.includes(".basher/bash") && l.includes("command not found")
-    )
-  );
-}
-
 export function dokku(cmd: string, opts: DokkuOptions = {}): string {
   const { timeout = 120_000, ignoreError = false } = opts;
   const args = cmd.split(/\s+/);
-  const result = spawnSync("sudo", ["dokku", ...args], {
-    timeout,
-    encoding: "utf-8",
-    stdio: ["pipe", "pipe", "pipe"],
-  });
+  // Pass args via $@ to avoid shell escaping issues
+  const result = spawnSync(
+    "sudo",
+    ["bash", "-c", 'dokku "$@"', "_", ...args],
+    {
+      timeout,
+      encoding: "utf-8",
+      stdio: ["pipe", "pipe", "pipe"],
+    }
+  );
 
   if (result.error) {
     if (ignoreError) {
@@ -41,10 +36,6 @@ export function dokku(cmd: string, opts: DokkuOptions = {}): string {
   }
 
   if (result.status !== 0) {
-    // Tolerate spurious basher/plugn dispatch errors
-    if (isBasherNoiseOnly(result.stderr || "")) {
-      return (result.stdout || "").trim();
-    }
     if (ignoreError) {
       return (result.stdout || result.stderr || "").trim();
     }
