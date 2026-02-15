@@ -142,13 +142,19 @@ if [[ "$mariadb_required" == "true" || "$mariadb_default" == "true" ]]; then
     dokku_cmd mariadb:link "$db_service" "$app_name" || true
     set_app_state "$app_name" "plugins/mariadb" "$db_service"
 
-    # If the manifest specifies a connection_env, copy DATABASE_URL to that env var
-    connection_env="$(get_manifest_field "$manifest" '.plugins.mariadb.connection_env // empty')"
-    if [[ -n "$connection_env" ]]; then
+    # If the manifest specifies a connection_env_prefix, parse DATABASE_URL into
+    # individual env vars (e.g. prefix__host, prefix__user, prefix__password, etc.)
+    # This is needed for mysql2 which cannot accept connection string URLs.
+    connection_env_prefix="$(get_manifest_field "$manifest" '.plugins.mariadb.connection_env_prefix // empty')"
+    if [[ -n "$connection_env_prefix" ]]; then
       db_url="$(dokku_cmd config:get "$app_name" "DATABASE_URL" 2>/dev/null || echo "")"
       if [[ -n "$db_url" ]]; then
-        echo "       Setting $connection_env from DATABASE_URL"
-        dokku_cmd config:set --no-restart "$app_name" "$connection_env=$db_url"
+        echo "       Setting ${connection_env_prefix}__* from DATABASE_URL"
+        db_env_vars="$(parse_database_url "$db_url" "$connection_env_prefix")"
+        if [[ -n "$db_env_vars" ]]; then
+          # shellcheck disable=SC2086
+          dokku_cmd config:set --no-restart "$app_name" $db_env_vars
+        fi
       fi
     fi
   else

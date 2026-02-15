@@ -110,6 +110,19 @@ generate_secret() {
   openssl rand -hex "$length"
 }
 
+# Parse a DATABASE_URL into individual env vars with a given prefix.
+# e.g. parse_database_url "mysql://user:pass@host:3306/dbname" "database__connection"
+# outputs: database__connection__user=user database__connection__password=pass ...
+parse_database_url() {
+  local url="$1"
+  local prefix="$2"
+
+  # Match: protocol://user:password@host:port/database
+  if [[ "$url" =~ ^[a-z]+://([^:]+):([^@]+)@([^:/]+):([0-9]+)/([^?]+) ]]; then
+    echo "${prefix}__user=${BASH_REMATCH[1]} ${prefix}__password=${BASH_REMATCH[2]} ${prefix}__host=${BASH_REMATCH[3]} ${prefix}__port=${BASH_REMATCH[4]} ${prefix}__database=${BASH_REMATCH[5]}"
+  fi
+}
+
 # Run a dokku command, tolerating exit code 127 from plugin hook dispatch.
 # dokku's plugn trigger mechanism can produce spurious exit 127 errors
 # when invoked from non-shell contexts (e.g., Node.js child_process).

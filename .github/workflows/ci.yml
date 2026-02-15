@@ -336,6 +336,8 @@ jobs:
           sudo dokku ps:report test-ghost 2>&1 || true
           echo "=== Library state ==="
           ls -laR /var/lib/dokku/services/library/apps/test-ghost/ 2>&1 || echo "STATE DIR MISSING"
+          echo "=== Config ==="
+          sudo dokku config:show test-ghost 2>&1 || true
           echo "=== MariaDB ==="
           sudo dokku mariadb:exists test-ghost-db && echo "DB EXISTS" || echo "DB MISSING"
           sudo dokku mariadb:linked test-ghost-db test-ghost && echo "DB LINKED" || echo "DB NOT LINKED"

@@ -4,7 +4,7 @@
   "image": "ghost:5-alpine",
   "url": "https://ghost.org",
   "plugins": {
-    "mariadb": { "required": true, "connection_env": "database__connection" },
+    "mariadb": { "required": true, "connection_env_prefix": "database__connection" },
     "letsencrypt": { "required": false, "default": true },
     "dokku-mail": { "required": false, "default": true },
     "dokku-auth": { "required": false, "default": true }
