@@ -3,28 +3,32 @@ set -eo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/config"
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/functions"
 
-case "$1" in
-  library | library:help)
-    library_help_cmd
-    ;;
-
-  library:*)
-    # Normalize "library:doctor:fix" → "doctor_fix", "library:list" → "list"
-    local_cmd="${1#library:}"
-    local_cmd="${local_cmd//:/_}"
-    shift
-
-    subcommand="$PLUGIN_BASE_PATH/subcommands/$local_cmd"
-    if [[ -x "$subcommand" ]]; then
-      "$subcommand" "$@"
-    else
-      echo "!     Unknown library command: $local_cmd" >&2
+main() {
+  case "$1" in
+    library | library:help)
       library_help_cmd
-      exit 1
-    fi
-    ;;
+      ;;
 
-  *)
-    exit "$DOKKU_NOT_IMPLEMENTED_EXIT"
-    ;;
-esac
+    library:*)
+      # Normalize "library:doctor:fix" → "doctor_fix", "library:list" → "list"
+      local_cmd="${1#library:}"
+      local_cmd="${local_cmd//:/_}"
+      shift
+
+      subcommand="$PLUGIN_BASE_PATH/subcommands/$local_cmd"
+      if [[ -x "$subcommand" ]]; then
+        "$subcommand" "$@"
+      else
+        echo "!     Unknown library command: $local_cmd" >&2
+        library_help_cmd
+        exit 1
+      fi
+      ;;
+
+    *)
+      exit "$DOKKU_NOT_IMPLEMENTED_EXIT"
+      ;;
+  esac
+}
+
+main "$@"

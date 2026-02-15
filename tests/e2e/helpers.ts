@@ -8,7 +8,7 @@ export interface DokkuOptions {
 
 export function dokku(cmd: string, opts: DokkuOptions = {}): string {
   const { timeout = 120_000, ignoreError = false } = opts;
-  const fullCmd = `sudo -i dokku ${cmd}`;
+  const fullCmd = `sudo dokku ${cmd}`;
   try {
     const result = execSync(fullCmd, {
       timeout,

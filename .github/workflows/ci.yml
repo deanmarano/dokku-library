@@ -69,6 +69,20 @@ jobs:
           sudo bash /var/lib/dokku/plugins/enabled/library/install
           # Verify the plugin is registered
           sudo dokku library:list
+      - name: Debug basher environment
+        run: |
+          echo "=== Basher directory ==="
+          sudo ls -la /home/dokku/.basher/ 2>/dev/null || echo "No .basher directory"
+          echo "=== Basher bash file ==="
+          sudo cat /home/dokku/.basher/bash 2>/dev/null || echo "No .basher/bash file"
+          echo "=== Dokku user shell config ==="
+          sudo cat /home/dokku/.bashrc 2>/dev/null || echo "No .bashrc"
+          sudo cat /home/dokku/.bash_profile 2>/dev/null || echo "No .bash_profile"
+          sudo cat /home/dokku/.profile 2>/dev/null || echo "No .profile"
+          echo "=== Commands file head ==="
+          head -5 /var/lib/dokku/plugins/enabled/library/commands
+          echo "=== Verify main function exists ==="
+          grep -n "^main" /var/lib/dokku/plugins/enabled/library/commands || echo "No main function found!"
       - name: Run checkout e2e tests
         run: npx playwright test tests/e2e/checkout.spec.ts --project=integration
       - name: Upload test results
