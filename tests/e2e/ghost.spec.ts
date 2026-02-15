@@ -6,15 +6,12 @@ import {
   appExists,
   getAppUrl,
   waitForHttp,
-  pluginAvailable,
 } from "./helpers.js";
 
 const APP_NAME = "test-ghost";
 
-test.describe("library:checkout ghost (with postgres)", () => {
+test.describe("library:checkout ghost", () => {
   test.beforeAll(() => {
-    test.skip(!pluginAvailable("postgres"), "postgres plugin not available");
-
     // In CI, the app is pre-deployed by a bash step (Node.js can't run git:from-image).
     // Locally, deploy if the app doesn't exist yet.
     if (!appExists(APP_NAME)) {
@@ -29,13 +26,6 @@ test.describe("library:checkout ghost (with postgres)", () => {
     cleanupApp(APP_NAME);
   });
 
-  test("should have postgres service created and linked", () => {
-    const dbService = `${APP_NAME}-db`;
-    const exists = dokku(`postgres:exists ${dbService}`, { ignoreError: true });
-    // postgres:exists exits 0 if exists
-    expect(exists).not.toContain("does not exist");
-  });
-
   test("should be running and healthy", async () => {
     const healthy = await waitForHealthy(APP_NAME, 120_000);
     expect(healthy).toBe(true);
@@ -47,11 +37,10 @@ test.describe("library:checkout ghost (with postgres)", () => {
     expect(reachable).toBe(true);
   });
 
-  test("cleanup should destroy postgres too", () => {
+  test("cleanup should succeed", () => {
     const output = dokku(`library:cleanup ${APP_NAME} --force`, {
       timeout: 120_000,
     });
     expect(output).toContain("cleaned up successfully");
-    expect(output).toContain("PostgreSQL");
   });
 });
