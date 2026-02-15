@@ -134,6 +134,79 @@ jobs:
           echo "=== DEPLOYED flag ==="
           ls -la /home/dokku/test-uptime-kuma/DEPLOYED 2>&1 || echo "DEPLOYED file missing"
 
+  e2e-lifecycle:
+    needs: [lint, unit-tests]
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install dependencies
+        run: npm ci && npx playwright install --with-deps
+      - name: Install Dokku
+        run: |
+          wget -NP . https://packagecloud.io/dokku/dokku/gpgkey
+          sudo apt-key add gpgkey
+          echo "deb https://packagecloud.io/dokku/dokku/ubuntu/ jammy main" | sudo tee /etc/apt/sources.list.d/dokku.list
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y dokku
+          sudo dokku plugin:install-dependencies --core
+      - name: Install dokku-postgres
+        run: sudo dokku plugin:install https://github.com/dokku/dokku-postgres.git postgres
+      - name: Install library plugin
+        run: |
+          sudo mkdir -p /var/lib/dokku/plugins/available/library/subcommands
+          sudo mkdir -p /var/lib/dokku/plugins/available/library/library
+          sudo cp commands config functions install plugin.toml /var/lib/dokku/plugins/available/library/
+          sudo cp subcommands/* /var/lib/dokku/plugins/available/library/subcommands/
+          sudo cp -r library/* /var/lib/dokku/plugins/available/library/library/
+          sudo chmod +x /var/lib/dokku/plugins/available/library/commands
+          sudo chmod +x /var/lib/dokku/plugins/available/library/subcommands/*
+          sudo dokku plugin:enable library || true
+          sudo bash /var/lib/dokku/plugins/enabled/library/install
+          sudo dokku library:list
+      - name: Deploy test app via bash
+        run: |
+          echo "127.0.0.1 test-lifecycle-app.test.local" | sudo tee -a /etc/hosts
+          sudo dokku library:checkout uptime-kuma \
+            --name=test-lifecycle-app \
+            --domain=test-lifecycle-app.test.local \
+            --no-ssl --no-auth --non-interactive
+      - name: Verify deployment state
+        run: |
+          echo "=== App exists? ==="
+          sudo dokku apps:exists test-lifecycle-app && echo "YES" || echo "NO"
+          echo "=== ps:report ==="
+          sudo dokku ps:report test-lifecycle-app 2>&1 || true
+          echo "=== Library state ==="
+          ls -laR /var/lib/dokku/services/library/apps/test-lifecycle-app/ 2>&1 || echo "STATE DIR MISSING"
+      - name: Run lifecycle e2e tests
+        run: npx playwright test tests/e2e/lifecycle.spec.ts --project=integration
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-lifecycle-results
+          path: playwright-report/
+      - name: Collect logs on failure
+        if: failure()
+        run: |
+          echo "=== Dokku apps ==="
+          sudo dokku apps:list 2>/dev/null || true
+          echo "=== ps:report ==="
+          sudo dokku ps:report 2>/dev/null || true
+          echo "=== Docker containers ==="
+          sudo docker ps -a 2>/dev/null || true
+          echo "=== Docker logs ==="
+          for container in $(sudo docker ps -aq 2>/dev/null); do
+            echo "--- Container $container ---"
+            sudo docker logs --tail 50 "$container" 2>/dev/null || true
+          done
+          echo "=== Library state ==="
+          ls -laR /var/lib/dokku/services/library/apps/ 2>&1 || echo "No state dir"
+
   # e2e-ghost:
   #   needs: [lint, unit-tests]
   #   if: github.event_name == 'push'

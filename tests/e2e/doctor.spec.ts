@@ -1,15 +1,18 @@
 import { test, expect } from "@playwright/test";
-import { dokku, cleanupApp } from "./helpers.js";
+import { dokku, cleanupApp, appExists } from "./helpers.js";
 
 const APP_NAME = "test-doctor-app";
 
 test.describe("library:doctor", () => {
   test.beforeAll(() => {
-    cleanupApp(APP_NAME);
-    dokku(
-      `library:checkout uptime-kuma --domain=${APP_NAME}.test.local --no-ssl --non-interactive`,
-      { timeout: 300_000 }
-    );
+    // In CI, the app is pre-deployed by a bash step (Node.js can't run git:from-image).
+    // Locally, deploy if the app doesn't exist yet.
+    if (!appExists(APP_NAME)) {
+      dokku(
+        `library:checkout uptime-kuma --name=${APP_NAME} --domain=${APP_NAME}.test.local --no-ssl --no-auth --non-interactive`,
+        { timeout: 300_000 }
+      );
+    }
   });
 
   test.afterAll(() => {
