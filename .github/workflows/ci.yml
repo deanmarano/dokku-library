@@ -71,28 +71,15 @@ jobs:
           sudo bash /var/lib/dokku/plugins/enabled/library/install
           # Verify the plugin is registered
           sudo dokku library:list
-      - name: Debug checkout from bash
+      - name: Deploy test app via bash
         run: |
-          echo "=== Test checkout directly from bash ==="
-          sudo dokku library:checkout uptime-kuma --name=debug-kuma --domain=debug-kuma.test.local --no-ssl --no-auth --non-interactive 2>&1 || echo "EXIT: $?"
-          echo ""
-          echo "=== Check app state ==="
-          sudo dokku apps:list 2>/dev/null || true
-          sudo ls -la /var/lib/dokku/services/library/apps/ 2>/dev/null || true
-          echo ""
-          echo "=== Check basher ==="
-          sudo ls -la /home/dokku/.basher/ 2>/dev/null || echo "No .basher directory for dokku user"
-          sudo ls -la /root/.basher/ 2>/dev/null || echo "No .basher directory for root"
-          ls -la ~/.basher/ 2>/dev/null || echo "No .basher directory for runner"
-          echo ""
-          echo "=== Test git:from-image directly ==="
-          sudo dokku apps:create from-image-test 2>/dev/null || true
-          sudo dokku git:from-image from-image-test louislam/uptime-kuma:1 2>&1; echo "GIT_FROM_IMAGE_EXIT: $?"
-          sudo dokku apps:destroy from-image-test --force 2>/dev/null || true
-          echo ""
-          echo "=== Cleanup ==="
-          sudo dokku apps:destroy debug-kuma --force 2>/dev/null || true
-          sudo rm -rf /var/lib/dokku/services/library/apps/debug-kuma 2>/dev/null || true
+          # dokku's plugn/go-basher dispatch requires a bash parent process for
+          # complex commands like git:from-image. Run checkout from bash directly.
+          echo "127.0.0.1 test-uptime-kuma.test.local" | sudo tee -a /etc/hosts
+          sudo dokku library:checkout uptime-kuma \
+            --name=test-uptime-kuma \
+            --domain=test-uptime-kuma.test.local \
+            --no-ssl --no-auth --non-interactive
       - name: Run checkout e2e tests
         run: npx playwright test tests/e2e/checkout.spec.ts --project=integration
       - name: Upload test results

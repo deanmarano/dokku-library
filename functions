@@ -115,16 +115,7 @@ generate_secret() {
 # when invoked from non-shell contexts (e.g., Node.js child_process).
 dokku_cmd() {
   local rc=0
-  # Clear BASH_ENV to prevent go-basher/plugn dispatch interference.
-  # When our plugin is dispatched via plugn, go-basher sets BASH_ENV to
-  # a temp file with our plugin's functions. Nested dokku calls inherit
-  # this BASH_ENV, which can interfere with plugn's dispatch of OTHER
-  # plugins (like git:from-image). Clearing it lets each plugn dispatch
-  # set up its own clean BASH_ENV.
-  env -u BASH_ENV "$DOKKU_BIN" "$@" || rc=$?
-  if [[ $rc -ne 0 ]]; then
-    echo "       DEBUG: dokku $* exited with $rc" >&2
-  fi
+  "$DOKKU_BIN" "$@" || rc=$?
   if [[ $rc -eq 127 ]]; then
     return 0
   fi
