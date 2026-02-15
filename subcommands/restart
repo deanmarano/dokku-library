@@ -19,5 +19,5 @@ if ! is_app_installed "$app_name"; then
 fi
 
 echo "-----> Restarting $app_name"
-"$DOKKU_BIN" ps:restart "$app_name"
+dokku_cmd ps:restart "$app_name"
 echo "       $app_name restarted"

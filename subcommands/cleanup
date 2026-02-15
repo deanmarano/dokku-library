@@ -38,41 +38,41 @@ echo "-----> Cleaning up $app_name"
 
 # Stop app
 echo "       Stopping app"
-"$DOKKU_BIN" ps:stop "$app_name" 2>/dev/null || true
+dokku_cmd ps:stop "$app_name" 2>/dev/null || true
 
 # Unlink and destroy postgres
 if [[ -f "$PLUGIN_DATA_ROOT/apps/$app_name/plugins/postgres" ]]; then
   db_service="$(cat "$PLUGIN_DATA_ROOT/apps/$app_name/plugins/postgres")"
   echo "       Removing PostgreSQL: $db_service"
-  "$DOKKU_BIN" postgres:unlink "$db_service" "$app_name" 2>/dev/null || true
-  "$DOKKU_BIN" postgres:destroy "$db_service" -f 2>/dev/null || true
+  dokku_cmd postgres:unlink "$db_service" "$app_name" 2>/dev/null || true
+  dokku_cmd postgres:destroy "$db_service" -f 2>/dev/null || true
 fi
 
 # Unlink mail
 if [[ -f "$PLUGIN_DATA_ROOT/apps/$app_name/plugins/dokku-mail" ]]; then
   mail_service="$(cat "$PLUGIN_DATA_ROOT/apps/$app_name/plugins/dokku-mail")"
   echo "       Removing mail: $mail_service"
-  "$DOKKU_BIN" mail:unlink "$mail_service" "$app_name" 2>/dev/null || true
-  "$DOKKU_BIN" mail:destroy "$mail_service" -f 2>/dev/null || true
+  dokku_cmd mail:unlink "$mail_service" "$app_name" 2>/dev/null || true
+  dokku_cmd mail:destroy "$mail_service" -f 2>/dev/null || true
 fi
 
 # Unlink and unprotect auth
 if [[ -f "$PLUGIN_DATA_ROOT/apps/$app_name/plugins/dokku-auth" ]]; then
   auth_service="$(cat "$PLUGIN_DATA_ROOT/apps/$app_name/plugins/dokku-auth")"
   echo "       Removing auth: $auth_service"
-  "$DOKKU_BIN" auth:unprotect "$app_name" 2>/dev/null || true
-  "$DOKKU_BIN" auth:unlink "$auth_service" "$app_name" 2>/dev/null || true
+  dokku_cmd auth:unprotect "$app_name" 2>/dev/null || true
+  dokku_cmd auth:unlink "$auth_service" "$app_name" 2>/dev/null || true
 fi
 
 # Disable letsencrypt
 if [[ -f "$PLUGIN_DATA_ROOT/apps/$app_name/plugins/letsencrypt" ]]; then
   echo "       Disabling Let's Encrypt"
-  "$DOKKU_BIN" letsencrypt:disable "$app_name" 2>/dev/null || true
+  dokku_cmd letsencrypt:disable "$app_name" 2>/dev/null || true
 fi
 
 # Destroy app
 echo "       Destroying app"
-"$DOKKU_BIN" apps:destroy "$app_name" --force
+dokku_cmd apps:destroy "$app_name" --force
 
 # Remove state directory
 echo "       Removing state"

@@ -25,7 +25,7 @@ has_issues=false
 echo "-----> Checking $app_name"
 
 # Check app exists in dokku
-if "$DOKKU_BIN" apps:exists "$app_name" 2>/dev/null; then
+if dokku_cmd apps:exists "$app_name" 2>/dev/null; then
   echo "       [OK] App exists"
 else
   echo "       [MISSING] App does not exist in dokku"
@@ -34,7 +34,7 @@ fi
 
 # Check image
 expected_image="$(get_app_state "$app_name" "IMAGE")"
-actual_image="$("$DOKKU_BIN" git:report "$app_name" --git-deploy-source 2>/dev/null || echo "")"
+actual_image="$(dokku_cmd git:report "$app_name" --git-deploy-source 2>/dev/null || echo "")"
 if [[ "$actual_image" == *"$expected_image"* || -z "$actual_image" ]]; then
   echo "       [OK] Image: $expected_image"
 else
@@ -44,7 +44,7 @@ fi
 
 # Check domain
 expected_domain="$(get_app_state "$app_name" "DOMAIN")"
-actual_domains="$("$DOKKU_BIN" domains:report "$app_name" --domains-app-vhosts 2>/dev/null || echo "")"
+actual_domains="$(dokku_cmd domains:report "$app_name" --domains-app-vhosts 2>/dev/null || echo "")"
 if echo "$actual_domains" | grep -q "$expected_domain"; then
   echo "       [OK] Domain: $expected_domain"
 else
@@ -55,7 +55,7 @@ fi
 # Check proxy ports
 expected_ports="$(get_manifest_field "$manifest" '.proxy.ports // empty')"
 if [[ -n "$expected_ports" ]]; then
-  actual_ports="$("$DOKKU_BIN" ports:report "$app_name" --ports-map 2>/dev/null || echo "")"
+  actual_ports="$(dokku_cmd ports:report "$app_name" --ports-map 2>/dev/null || echo "")"
   if echo "$actual_ports" | grep -q "$(echo "$expected_ports" | tr ' ' '\n' | head -1)"; then
     echo "       [OK] Proxy ports configured"
   else
@@ -69,7 +69,7 @@ env_keys="$(get_manifest_field "$manifest" '.env | keys[]' 2>/dev/null || true)"
 if [[ -n "$env_keys" ]]; then
   while IFS= read -r key; do
     expected_value="$(get_app_state "$app_name" "env/$key")"
-    actual_value="$("$DOKKU_BIN" config:get "$app_name" "$key" 2>/dev/null || echo "")"
+    actual_value="$(dokku_cmd config:get "$app_name" "$key" 2>/dev/null || echo "")"
 
     if [[ -z "$expected_value" ]]; then
       continue
@@ -90,8 +90,8 @@ fi
 # Check postgres
 if [[ -f "$PLUGIN_DATA_ROOT/apps/$app_name/plugins/postgres" ]]; then
   db_service="$(cat "$PLUGIN_DATA_ROOT/apps/$app_name/plugins/postgres")"
-  if "$DOKKU_BIN" postgres:exists "$db_service" 2>/dev/null; then
-    linked="$("$DOKKU_BIN" postgres:linked "$db_service" "$app_name" 2>/dev/null && echo "yes" || echo "no")"
+  if dokku_cmd postgres:exists "$db_service" 2>/dev/null; then
+    linked="$(dokku_cmd postgres:linked "$db_service" "$app_name" 2>/dev/null && echo "yes" || echo "no")"
     if [[ "$linked" == "yes" ]]; then
       echo "       [OK] Postgres linked: $db_service"
     else
@@ -106,7 +106,7 @@ fi
 
 # Check letsencrypt
 if [[ -f "$PLUGIN_DATA_ROOT/apps/$app_name/plugins/letsencrypt" ]]; then
-  ssl_enabled="$("$DOKKU_BIN" letsencrypt:active "$app_name" 2>/dev/null && echo "yes" || echo "no")"
+  ssl_enabled="$(dokku_cmd letsencrypt:active "$app_name" 2>/dev/null && echo "yes" || echo "no")"
   if [[ "$ssl_enabled" == "yes" ]]; then
     echo "       [OK] Let's Encrypt enabled"
   else
@@ -116,7 +116,7 @@ if [[ -f "$PLUGIN_DATA_ROOT/apps/$app_name/plugins/letsencrypt" ]]; then
 fi
 
 # Check running
-running="$("$DOKKU_BIN" ps:report "$app_name" --ps-running 2>/dev/null || echo "false")"
+running="$(dokku_cmd ps:report "$app_name" --ps-running 2>/dev/null || echo "false")"
 if [[ "$running" == "true" ]]; then
   echo "       [OK] Running"
 else

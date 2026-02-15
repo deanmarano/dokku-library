@@ -15,7 +15,7 @@ if [[ -n "$app_name" ]]; then
   fi
 
   echo "=====> Status for $app_name"
-  "$DOKKU_BIN" ps:report "$app_name" 2>/dev/null || echo "       App not found in dokku"
+  dokku_cmd ps:report "$app_name" 2>/dev/null || echo "       App not found in dokku"
 else
   echo "=====> Library App Status"
   installed_apps="$(get_installed_apps)"
@@ -30,7 +30,7 @@ else
 
   while IFS= read -r app; do
     domain="$(get_app_state "$app" "DOMAIN")"
-    running="$("$DOKKU_BIN" ps:report "$app" --ps-running 2>/dev/null || echo "unknown")"
+    running="$(dokku_cmd ps:report "$app" --ps-running 2>/dev/null || echo "unknown")"
 
     if [[ "$running" == "true" ]]; then
       status="running"

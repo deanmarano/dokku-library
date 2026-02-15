@@ -95,7 +95,7 @@ secret="$(generate_secret 32)"
 
 # Create the dokku app
 echo "-----> Creating app $app_name"
-"$DOKKU_BIN" apps:create "$app_name"
+dokku_cmd apps:create "$app_name"
 
 # Set up plugins
 echo "-----> Configuring plugins"
@@ -107,13 +107,13 @@ if [[ "$postgres_required" == "true" || "$postgres_default" == "true" ]]; then
   if check_plugin_available "postgres"; then
     db_service="${app_name}-db"
     echo "       Setting up PostgreSQL: $db_service"
-    "$DOKKU_BIN" postgres:create "$db_service" || true
-    "$DOKKU_BIN" postgres:link "$db_service" "$app_name" || true
+    dokku_cmd postgres:create "$db_service" || true
+    dokku_cmd postgres:link "$db_service" "$app_name" || true
     set_app_state "$app_name" "plugins/postgres" "$db_service"
   else
     if [[ "$postgres_required" == "true" ]]; then
       echo "!     PostgreSQL plugin required but not installed" >&2
-      "$DOKKU_BIN" apps:destroy "$app_name" --force
+      dokku_cmd apps:destroy "$app_name" --force
       exit 1
     fi
     echo "       PostgreSQL plugin not available, skipping"
@@ -134,19 +134,19 @@ if [[ -n "$env_keys" ]]; then
 
   if [[ -n "$env_args" ]]; then
     # shellcheck disable=SC2086
-    "$DOKKU_BIN" config:set --no-restart "$app_name" $env_args
+    dokku_cmd config:set --no-restart "$app_name" $env_args
   fi
 fi
 
 # Set domain
 echo "-----> Setting domain: $domain"
-"$DOKKU_BIN" domains:set "$app_name" "$domain"
+dokku_cmd domains:set "$app_name" "$domain"
 
 # Set proxy ports
 proxy_ports="$(get_manifest_field "$manifest" '.proxy.ports // empty')"
 if [[ -n "$proxy_ports" ]]; then
   echo "-----> Setting proxy ports: $proxy_ports"
-  "$DOKKU_BIN" ports:set "$app_name" "$proxy_ports"
+  dokku_cmd ports:set "$app_name" "$proxy_ports"
 fi
 
 # Set up storage mounts
@@ -159,7 +159,7 @@ if [[ "$storage_count" -gt 0 ]]; then
     host_path="${host_path//%APP_NAME%/$app_name}"
     container_path="$(echo "$mount" | cut -d: -f2)"
     mkdir -p "$host_path"
-    "$DOKKU_BIN" storage:mount "$app_name" "${host_path}:${container_path}"
+    dokku_cmd storage:mount "$app_name" "${host_path}:${container_path}"
   done
 fi
 
@@ -168,13 +168,13 @@ for phase in deploy run; do
   options="$(get_manifest_field "$manifest" ".docker_options.$phase // empty")"
   if [[ -n "$options" ]]; then
     echo "-----> Setting docker options for $phase"
-    "$DOKKU_BIN" docker-options:add "$app_name" "$phase" "$options"
+    dokku_cmd docker-options:add "$app_name" "$phase" "$options"
   fi
 done
 
 # Deploy from image
 echo "-----> Deploying $app_name from image $image"
-"$DOKKU_BIN" git:from-image "$app_name" "$image"
+dokku_cmd git:from-image "$app_name" "$image"
 
 # Run post-deploy commands
 post_deploy_count="$(get_manifest_field "$manifest" '.setup.post_deploy | length' 2>/dev/null || echo 0)"
@@ -184,7 +184,7 @@ if [[ "$post_deploy_count" -gt 0 ]]; then
     cmd="$(get_manifest_field "$manifest" ".setup.post_deploy[$i]")"
     echo "       Running: $cmd"
     # shellcheck disable=SC2086
-    "$DOKKU_BIN" run "$app_name" $cmd
+    dokku_cmd run "$app_name" $cmd
   done
 fi
 
@@ -193,7 +193,7 @@ le_default="$(get_manifest_field "$manifest" '.plugins.letsencrypt.default // fa
 if [[ "$le_default" == "true" && "$no_ssl" != "true" ]]; then
   if check_plugin_available "letsencrypt"; then
     echo "-----> Enabling Let's Encrypt SSL"
-    "$DOKKU_BIN" letsencrypt:enable "$app_name" || echo "       Warning: letsencrypt setup failed, continuing without SSL"
+    dokku_cmd letsencrypt:enable "$app_name" || echo "       Warning: letsencrypt setup failed, continuing without SSL"
     set_app_state "$app_name" "plugins/letsencrypt" "enabled"
   else
     echo "       Let's Encrypt plugin not available, skipping SSL"
@@ -206,8 +206,8 @@ if [[ "$mail_default" == "true" && "$no_mail" != "true" ]]; then
   if check_plugin_available "dokku-mail"; then
     mail_service="${app_name}-mail"
     echo "-----> Setting up mail: $mail_service"
-    "$DOKKU_BIN" mail:create "$mail_service" || true
-    "$DOKKU_BIN" mail:link "$mail_service" "$app_name" || true
+    dokku_cmd mail:create "$mail_service" || true
+    dokku_cmd mail:link "$mail_service" "$app_name" || true
     set_app_state "$app_name" "plugins/dokku-mail" "$mail_service"
   else
     echo "       Mail plugin not available, skipping"
@@ -222,13 +222,13 @@ if [[ "$auth_default" == "true" && "$no_auth" != "true" ]]; then
     AUTH_SERVICE="${auth_service:-}"
     if [[ -z "$AUTH_SERVICE" ]]; then
       # Look for a default auth directory service
-      AUTH_SERVICE="$("$DOKKU_BIN" auth:list 2>/dev/null | head -1 || true)"
+      AUTH_SERVICE="$(dokku_cmd auth:list 2>/dev/null | head -1 || true)"
     fi
     if [[ -n "$AUTH_SERVICE" ]]; then
       echo "-----> Linking auth service: $AUTH_SERVICE"
-      "$DOKKU_BIN" auth:link "$AUTH_SERVICE" "$app_name" || true
+      dokku_cmd auth:link "$AUTH_SERVICE" "$app_name" || true
       echo "-----> Protecting app with Authelia forward auth"
-      "$DOKKU_BIN" auth:protect "$app_name" || true
+      dokku_cmd auth:protect "$app_name" || true
       set_app_state "$app_name" "plugins/dokku-auth" "$AUTH_SERVICE"
     else
       echo "       No auth service found, skipping auth setup"

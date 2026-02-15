@@ -110,6 +110,18 @@ generate_secret() {
   openssl rand -hex "$length"
 }
 
+# Run a dokku command, tolerating exit code 127 from plugin hook dispatch.
+# dokku's plugn trigger mechanism can produce spurious exit 127 errors
+# when invoked from non-shell contexts (e.g., Node.js child_process).
+dokku_cmd() {
+  local rc=0
+  "$DOKKU_BIN" "$@" || rc=$?
+  if [[ $rc -eq 127 ]]; then
+    return 0
+  fi
+  return $rc
+}
+
 get_library_apps() {
   local library_dir="$PLUGIN_BASE_PATH/library"
   if [[ -d "$library_dir" ]]; then

@@ -33,7 +33,7 @@ if [[ "$current_image" == "$latest_image" ]]; then
 fi
 
 echo "-----> Deploying $app_name from image $latest_image"
-"$DOKKU_BIN" git:from-image "$app_name" "$latest_image"
+dokku_cmd git:from-image "$app_name" "$latest_image"
 
 # Update state
 set_app_state "$app_name" "IMAGE" "$latest_image"
