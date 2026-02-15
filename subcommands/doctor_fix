@@ -112,7 +112,7 @@ if [[ -n "$expected_image" && "$actual_image" != *"$expected_image"* ]]; then
 fi
 
 # Check running
-running="$(dokku_cmd ps:report "$app_name" --ps-running 2>/dev/null || echo "false")"
+running="$(dokku_cmd ps:report "$app_name" --running 2>/dev/null || echo "false")"
 if [[ "$running" != "true" ]]; then
   echo "       [FIX] Starting app"
   dokku_cmd ps:start "$app_name"

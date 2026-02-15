@@ -59,7 +59,7 @@ export function waitForHealthy(
   return new Promise((resolve) => {
     const check = () => {
       try {
-        const result = dokku(`ps:report ${appName} --ps-running`, {
+        const result = dokku(`ps:report ${appName} --running`, {
           ignoreError: true,
         });
         if (result === "true") {

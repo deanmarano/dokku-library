@@ -100,40 +100,6 @@ jobs:
           sudo cat /home/dokku/test-uptime-kuma/nginx.conf 2>&1 || echo "No nginx.conf"
           echo "=== DEPLOYED flag ==="
           ls -la /home/dokku/test-uptime-kuma/DEPLOYED 2>&1 || echo "DEPLOYED file missing"
-      - name: Test dokku commands from Node.js vs bash
-        run: |
-          echo "=== Bash: ps:report --ps-running ==="
-          sudo dokku ps:report test-uptime-kuma --ps-running 2>&1
-          echo "EXIT CODE: $?"
-          echo ""
-          echo "=== Node.js: ps:report --ps-running ==="
-          node -e '
-            const { spawnSync } = require("child_process");
-            const r = spawnSync("sudo", ["bash", "-c", "dokku \"\$@\"", "_", "ps:report", "test-uptime-kuma", "--ps-running"], { encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] });
-            console.log("stdout:", JSON.stringify(r.stdout));
-            console.log("stderr:", JSON.stringify(r.stderr));
-            console.log("status:", r.status);
-            const result = (r.stdout || r.stderr || "").trim();
-            console.log("result:", JSON.stringify(result));
-            console.log("result === true:", result === "true");
-          '
-          echo ""
-          echo "=== Node.js: library:status ==="
-          node -e '
-            const { spawnSync } = require("child_process");
-            const r = spawnSync("sudo", ["bash", "-c", "dokku \"\$@\"", "_", "library:status", "test-uptime-kuma"], { encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] });
-            console.log("stdout:", JSON.stringify(r.stdout));
-            console.log("stderr:", JSON.stringify(r.stderr));
-            console.log("status:", r.status);
-          '
-          echo ""
-          echo "=== Node.js: is state dir visible? ==="
-          node -e '
-            const { spawnSync } = require("child_process");
-            const r = spawnSync("sudo", ["bash", "-c", "ls -la /var/lib/dokku/services/library/apps/test-uptime-kuma/"], { encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] });
-            console.log("stdout:", JSON.stringify(r.stdout));
-            console.log("status:", r.status);
-          '
       - name: Run checkout e2e tests
         run: npx playwright test tests/e2e/checkout.spec.ts --project=integration
       - name: Upload test results

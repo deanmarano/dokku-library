@@ -116,7 +116,7 @@ if [[ -f "$PLUGIN_DATA_ROOT/apps/$app_name/plugins/letsencrypt" ]]; then
 fi
 
 # Check running
-running="$(dokku_cmd ps:report "$app_name" --ps-running 2>/dev/null || echo "false")"
+running="$(dokku_cmd ps:report "$app_name" --running 2>/dev/null || echo "false")"
 if [[ "$running" == "true" ]]; then
   echo "       [OK] Running"
 else

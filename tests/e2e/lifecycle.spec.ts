@@ -16,7 +16,7 @@ test.describe("library lifecycle (stop/restart/cleanup)", () => {
     const output = dokku(`library:stop ${APP_NAME}`);
     expect(output).toContain("stopped");
 
-    const running = dokku(`ps:report ${APP_NAME} --ps-running`, {
+    const running = dokku(`ps:report ${APP_NAME} --running`, {
       ignoreError: true,
     });
     expect(running).toBe("false");
