@@ -69,32 +69,6 @@ jobs:
           sudo bash /var/lib/dokku/plugins/enabled/library/install
           # Verify the plugin is registered
           sudo dokku library:list
-      - name: Debug dokku environment
-        run: |
-          echo "=== Dokku user info ==="
-          getent passwd dokku
-          echo "=== plugn location ==="
-          which plugn 2>/dev/null || echo "plugn not found"
-          plugn version 2>/dev/null || echo "no plugn version"
-          echo "=== Dokku version ==="
-          dokku version 2>/dev/null || true
-          echo "=== Test Node.js spawnSync checkout ==="
-          node -e "
-            const { spawnSync } = require('child_process');
-            const result = spawnSync('sudo', ['dokku', 'library:checkout', 'uptime-kuma', '--name=debug-kuma', '--domain=debug-kuma.test.local', '--no-ssl', '--no-auth', '--non-interactive'], {
-              timeout: 300000,
-              encoding: 'utf-8',
-              stdio: ['pipe', 'pipe', 'pipe'],
-            });
-            console.log('EXIT CODE:', result.status);
-            console.log('SIGNAL:', result.signal);
-            console.log('STDOUT (last 500 chars):', (result.stdout || '').slice(-500));
-            console.log('STDERR:', result.stderr);
-            if (result.error) console.log('ERROR:', result.error.message);
-          "
-          # Cleanup
-          sudo dokku apps:destroy debug-kuma --force 2>/dev/null || true
-          sudo rm -rf /var/lib/dokku/services/library/apps/debug-kuma 2>/dev/null || true
       - name: Run checkout e2e tests
         run: npx playwright test tests/e2e/checkout.spec.ts --project=integration
       - name: Upload test results

@@ -142,13 +142,6 @@ fi
 echo "-----> Setting domain: $domain"
 dokku_cmd domains:set "$app_name" "$domain"
 
-# Set proxy ports
-proxy_ports="$(get_manifest_field "$manifest" '.proxy.ports // empty')"
-if [[ -n "$proxy_ports" ]]; then
-  echo "-----> Setting proxy ports: $proxy_ports"
-  dokku_cmd ports:set "$app_name" "$proxy_ports"
-fi
-
 # Set up storage mounts
 storage_count="$(get_manifest_field "$manifest" '.storage | length' 2>/dev/null || echo 0)"
 if [[ "$storage_count" -gt 0 ]]; then
@@ -175,6 +168,13 @@ done
 # Deploy from image
 echo "-----> Deploying $app_name from image $image"
 dokku_cmd git:from-image "$app_name" "$image"
+
+# Set proxy ports (after deploy so web process type exists)
+proxy_ports="$(get_manifest_field "$manifest" '.proxy.ports // empty')"
+if [[ -n "$proxy_ports" ]]; then
+  echo "-----> Setting proxy ports: $proxy_ports"
+  dokku_cmd ports:set "$app_name" "$proxy_ports"
+fi
 
 # Run post-deploy commands
 post_deploy_count="$(get_manifest_field "$manifest" '.setup.post_deploy | length' 2>/dev/null || echo 0)"
