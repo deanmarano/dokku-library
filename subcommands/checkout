@@ -167,7 +167,10 @@ done
 
 # Deploy from image
 echo "-----> Deploying $app_name from image $image"
-dokku_cmd git:from-image "$app_name" "$image"
+echo "       DEBUG: About to run git:from-image"
+deploy_rc=0
+dokku_cmd git:from-image "$app_name" "$image" || deploy_rc=$?
+echo "       DEBUG: git:from-image exited with $deploy_rc"
 
 # Set proxy ports (after deploy so web process type exists)
 proxy_ports="$(get_manifest_field "$manifest" '.proxy.ports // empty')"

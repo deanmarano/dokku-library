@@ -116,6 +116,9 @@ generate_secret() {
 dokku_cmd() {
   local rc=0
   "$DOKKU_BIN" "$@" || rc=$?
+  if [[ $rc -ne 0 ]]; then
+    echo "       DEBUG: dokku $* exited with $rc" >&2
+  fi
   if [[ $rc -eq 127 ]]; then
     return 0
   fi
