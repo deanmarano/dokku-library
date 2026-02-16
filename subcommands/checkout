@@ -98,6 +98,13 @@ secret_base64="$(generate_secret_base64 32)"
 echo "-----> Creating app $app_name"
 dokku_cmd apps:create "$app_name"
 
+# Scheduler settings (e.g. disable init process for s6-overlay images)
+init_process="$(get_manifest_field "$manifest" '.scheduler.init_process // empty')"
+if [[ "$init_process" == "false" ]]; then
+  echo "       Disabling init process (s6-overlay compatibility)"
+  dokku_cmd scheduler-docker-local:set "$app_name" init-process false
+fi
+
 # Set up plugins
 echo "-----> Configuring plugins"
 

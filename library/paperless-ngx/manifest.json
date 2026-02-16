@@ -44,5 +44,8 @@
     "/var/lib/dokku/data/storage/paperless-%APP_NAME%-consume:/usr/src/paperless/consume",
     "/var/lib/dokku/data/storage/paperless-%APP_NAME%-export:/usr/src/paperless/export"
   ],
-  "docker_options": {}
+  "docker_options": {},
+  "scheduler": {
+    "init_process": false
+  }
 }
