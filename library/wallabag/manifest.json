@@ -12,6 +12,8 @@
   "env": {
     "SYMFONY__ENV__DOMAIN_NAME": "http://%DOMAIN%",
     "SYMFONY__ENV__DATABASE_DRIVER": "pdo_pgsql",
+    "SYMFONY__ENV__DATABASE_TABLE_PREFIX": "wallabag_",
+    "POPULATE_DATABASE": "True",
     "SYMFONY__ENV__SERVER_NAME": "Wallabag",
     "SYMFONY__ENV__FOSUSER_REGISTRATION": "false",
     "SYMFONY__ENV__SECRET": "%SECRET%"
