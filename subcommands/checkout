@@ -215,6 +215,34 @@ if [[ "$mariadb_required" == "true" || "$mariadb_default" == "true" ]]; then
         fi
       fi
     fi
+
+    # If the manifest specifies a connection_env_map, parse DATABASE_URL and set
+    # each component to the specified env var name
+    connection_env_map="$(get_manifest_field "$manifest" '.plugins.mariadb.connection_env_map // empty')"
+    if [[ -n "$connection_env_map" ]]; then
+      db_url="$(dokku_cmd config:get "$app_name" "DATABASE_URL" 2>/dev/null || echo "")"
+      if [[ -n "$db_url" && "$db_url" =~ ^[a-z]+://([^:]+):([^@]+)@([^:/]+):([0-9]+)/([^?]+) ]]; then
+        map_env_args=""
+        for component in host port user password name; do
+          env_var="$(echo "$connection_env_map" | jq -r ".$component // empty")"
+          if [[ -n "$env_var" ]]; then
+            case "$component" in
+              user) val="${BASH_REMATCH[1]}" ;;
+              password) val="${BASH_REMATCH[2]}" ;;
+              host) val="${BASH_REMATCH[3]}" ;;
+              port) val="${BASH_REMATCH[4]}" ;;
+              name) val="${BASH_REMATCH[5]}" ;;
+            esac
+            map_env_args="$map_env_args $env_var=$val"
+          fi
+        done
+        if [[ -n "$map_env_args" ]]; then
+          echo "       Setting database connection vars from DATABASE_URL"
+          # shellcheck disable=SC2086
+          dokku_cmd config:set --no-restart "$app_name" $map_env_args
+        fi
+      fi
+    fi
   else
     if [[ "$mariadb_required" == "true" ]]; then
       echo "!     MariaDB plugin required but not installed" >&2

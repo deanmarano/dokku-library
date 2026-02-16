@@ -4,7 +4,7 @@
   "image": "lscr.io/linuxserver/bookstack:latest",
   "url": "https://www.bookstackapp.com",
   "plugins": {
-    "postgres": {
+    "mariadb": {
       "required": true,
       "connection_env_map": {
         "host": "DB_HOST",
@@ -20,7 +20,7 @@
   },
   "env": {
     "APP_URL": "http://%DOMAIN%",
-    "DB_CONNECTION": "pgsql",
+    "DB_CONNECTION": "mysql",
     "PUID": "1000",
     "PGID": "1000",
     "TZ": "Etc/UTC"

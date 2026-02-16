@@ -1498,8 +1498,8 @@ jobs:
           sudo apt-get update
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y dokku
           sudo dokku plugin:install-dependencies --core
-      - name: Install dokku-postgres
-        run: sudo dokku plugin:install https://github.com/dokku/dokku-postgres.git postgres
+      - name: Install dokku-mariadb
+        run: sudo dokku plugin:install https://github.com/dokku/dokku-mariadb.git mariadb
       - name: Install library plugin
         run: |
           sudo mkdir -p /var/lib/dokku/plugins/available/library/subcommands
@@ -1531,9 +1531,9 @@ jobs:
           sudo dokku config:show test-bookstack 2>&1 || true
           echo "=== Storage ==="
           sudo dokku storage:report test-bookstack 2>&1 || true
-          echo "=== PostgreSQL ==="
-          sudo dokku postgres:exists test-bookstack-db && echo "DB EXISTS" || echo "DB MISSING"
-          sudo dokku postgres:linked test-bookstack-db test-bookstack && echo "DB LINKED" || echo "DB NOT LINKED"
+          echo "=== MariaDB ==="
+          sudo dokku mariadb:exists test-bookstack-db && echo "DB EXISTS" || echo "DB MISSING"
+          sudo dokku mariadb:linked test-bookstack-db test-bookstack && echo "DB LINKED" || echo "DB NOT LINKED"
       - name: Run bookstack e2e tests
         run: npx playwright test tests/e2e/bookstack.spec.ts --project=integration
       - name: Upload test results
@@ -1558,5 +1558,5 @@ jobs:
           done
           echo "=== Library state ==="
           ls -laR /var/lib/dokku/services/library/apps/ 2>&1 || echo "No state dir"
-          echo "=== PostgreSQL info ==="
-          sudo dokku postgres:info test-bookstack-db 2>&1 || true
+          echo "=== MariaDB info ==="
+          sudo dokku mariadb:info test-bookstack-db 2>&1 || true

@@ -11,9 +11,9 @@ import {
 
 const APP_NAME = "test-bookstack";
 
-test.describe("library:checkout bookstack (with postgres)", () => {
+test.describe("library:checkout bookstack (with mariadb)", () => {
   test.beforeAll(() => {
-    test.skip(!pluginAvailable("postgres"), "postgres plugin not available");
+    test.skip(!pluginAvailable("mariadb"), "mariadb plugin not available");
 
     if (!appExists(APP_NAME)) {
       dokku(
@@ -27,9 +27,9 @@ test.describe("library:checkout bookstack (with postgres)", () => {
     cleanupApp(APP_NAME);
   });
 
-  test("should have postgres service created and linked", () => {
+  test("should have mariadb service created and linked", () => {
     const dbService = `${APP_NAME}-db`;
-    const exists = dokku(`postgres:exists ${dbService}`, {
+    const exists = dokku(`mariadb:exists ${dbService}`, {
       ignoreError: true,
     });
     expect(exists).not.toContain("does not exist");
@@ -61,11 +61,11 @@ test.describe("library:checkout bookstack (with postgres)", () => {
     expect(body.toLowerCase()).toContain("bookstack");
   });
 
-  test("cleanup should destroy postgres too", () => {
+  test("cleanup should destroy mariadb too", () => {
     const output = dokku(`library:cleanup ${APP_NAME} --force`, {
       timeout: 120_000,
     });
     expect(output).toContain("cleaned up successfully");
-    expect(output).toContain("PostgreSQL");
+    expect(output).toContain("MariaDB");
   });
 });
