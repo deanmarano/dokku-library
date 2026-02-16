@@ -5,15 +5,16 @@
   "url": "https://www.getoutline.com",
   "plugins": {
     "postgres": { "required": true },
+    "redis": { "required": true },
     "letsencrypt": { "required": false, "default": true },
     "dokku-mail": { "required": false, "default": true },
     "dokku-auth": { "required": false, "default": true, "integration": "oidc" }
   },
   "env": {
-    "URL": "https://%DOMAIN%",
+    "URL": "http://%DOMAIN%",
     "SECRET_KEY": "%SECRET%",
     "UTILS_SECRET": "%SECRET%",
-    "FORCE_HTTPS": "true",
+    "FORCE_HTTPS": "false",
     "PGSSLMODE": "disable",
     "FILE_STORAGE": "local",
     "FILE_STORAGE_LOCAL_ROOT_DIR": "/var/lib/outline/data"
