@@ -50,14 +50,15 @@ test.describe("library:checkout paperless-ngx (with postgres)", () => {
 
   test("should respond on HTTP", async () => {
     const url = getAppUrl(APP_NAME);
-    const reachable = await waitForHttp(url, 120_000);
+    // Paperless-ngx runs 1000+ Django migrations on first start, needs extra time
+    const reachable = await waitForHttp(url, 240_000);
     expect(reachable).toBe(true);
   });
 
   test("should serve paperless-ngx UI", async () => {
     const url = getAppUrl(APP_NAME);
     const response = await fetch(url, {
-      signal: AbortSignal.timeout(10_000),
+      signal: AbortSignal.timeout(30_000),
       redirect: "follow",
     });
     const body = await response.text();
