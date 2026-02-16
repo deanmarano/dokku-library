@@ -114,10 +114,12 @@ if [[ "$postgres_required" == "true" || "$postgres_default" == "true" ]]; then
 
     # If the manifest specifies a connection_env, copy DATABASE_URL to that env var
     # (e.g. Grafana needs GF_DATABASE_URL instead of DATABASE_URL)
+    # Normalizes postgres:// to postgresql:// for SQLAlchemy compatibility
     connection_env="$(get_manifest_field "$manifest" '.plugins.postgres.connection_env // empty')"
     if [[ -n "$connection_env" ]]; then
       db_url="$(dokku_cmd config:get "$app_name" "DATABASE_URL" 2>/dev/null || echo "")"
       if [[ -n "$db_url" ]]; then
+        db_url="${db_url/postgres:\/\//postgresql:\/\/}"
         echo "       Setting $connection_env from DATABASE_URL"
         dokku_cmd config:set --no-restart "$app_name" "$connection_env=$db_url"
       fi
