@@ -4,7 +4,7 @@
   "image": "ghcr.io/mealie-recipes/mealie:latest",
   "url": "https://mealie.io",
   "plugins": {
-    "postgres": { "required": false, "default": true, "connection_env": "POSTGRES_URL_OVERRIDE" },
+    "postgres": { "required": false, "default": true, "connection_env": "POSTGRES_URL_OVERRIDE", "connection_env_scheme": "postgresql" },
     "letsencrypt": { "required": false, "default": true },
     "dokku-mail": { "required": false, "default": false },
     "dokku-auth": { "required": false, "default": true, "integration": "oidc" }
