@@ -10,7 +10,7 @@
     "dokku-auth": { "required": false, "default": true }
   },
   "env": {
-    "PAPERLESS_URL": "https://%DOMAIN%",
+    "PAPERLESS_URL": "http://%DOMAIN%",
     "PAPERLESS_SECRET_KEY": "%SECRET%",
     "PAPERLESS_ADMIN_USER": "admin",
     "PAPERLESS_ADMIN_PASSWORD": "%SECRET%",

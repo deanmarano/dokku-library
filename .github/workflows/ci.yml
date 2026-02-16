@@ -27,6 +27,7 @@ jobs:
       e2e-jellyfin: ${{ steps.filter.outputs.e2e-jellyfin }}
       e2e-uptime-kuma: ${{ steps.filter.outputs.e2e-uptime-kuma }}
       e2e-mealie: ${{ steps.filter.outputs.e2e-mealie }}
+      e2e-paperless-ngx: ${{ steps.filter.outputs.e2e-paperless-ngx }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -102,6 +103,9 @@ jobs:
             e2e-mealie:
               - 'tests/e2e/mealie.spec.ts'
               - 'library/mealie/**'
+            e2e-paperless-ngx:
+              - 'tests/e2e/paperless-ngx.spec.ts'
+              - 'library/paperless-ngx/**'
 
   lint:
     needs: [changes]
@@ -1190,3 +1194,88 @@ jobs:
           ls -laR /var/lib/dokku/services/library/apps/ 2>&1 || echo "No state dir"
           echo "=== PostgreSQL info ==="
           sudo dokku postgres:info test-mealie-db 2>&1 || true
+
+  e2e-paperless-ngx:
+    needs: [changes, lint, unit-tests]
+    if: |
+      !failure() && !cancelled() &&
+      (needs.changes.outputs.core == 'true' || needs.changes.outputs.e2e-paperless-ngx == 'true')
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install dependencies
+        run: npm ci && npx playwright install --with-deps
+      - name: Install Dokku
+        run: |
+          wget -NP . https://packagecloud.io/dokku/dokku/gpgkey
+          sudo apt-key add gpgkey
+          echo "deb https://packagecloud.io/dokku/dokku/ubuntu/ jammy main" | sudo tee /etc/apt/sources.list.d/dokku.list
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y dokku
+          sudo dokku plugin:install-dependencies --core
+      - name: Install dokku-postgres
+        run: sudo dokku plugin:install https://github.com/dokku/dokku-postgres.git postgres
+      - name: Install library plugin
+        run: |
+          sudo mkdir -p /var/lib/dokku/plugins/available/library/subcommands
+          sudo mkdir -p /var/lib/dokku/plugins/available/library/library
+          sudo cp commands config functions install plugin.toml /var/lib/dokku/plugins/available/library/
+          sudo cp subcommands/* /var/lib/dokku/plugins/available/library/subcommands/
+          sudo cp -r library/* /var/lib/dokku/plugins/available/library/library/
+          sudo chmod +x /var/lib/dokku/plugins/available/library/commands
+          sudo chmod +x /var/lib/dokku/plugins/available/library/subcommands/*
+          sudo dokku plugin:enable library || true
+          sudo bash /var/lib/dokku/plugins/enabled/library/install
+          sudo dokku library:list
+      - name: Deploy paperless-ngx via bash
+        run: |
+          echo "127.0.0.1 test-paperless.test.local" | sudo tee -a /etc/hosts
+          sudo dokku library:checkout paperless-ngx \
+            --name=test-paperless \
+            --domain=test-paperless.test.local \
+            --no-ssl --no-auth --non-interactive
+      - name: Verify deployment state
+        run: |
+          echo "=== App exists? ==="
+          sudo dokku apps:exists test-paperless && echo "YES" || echo "NO"
+          echo "=== ps:report ==="
+          sudo dokku ps:report test-paperless 2>&1 || true
+          echo "=== Library state ==="
+          ls -laR /var/lib/dokku/services/library/apps/test-paperless/ 2>&1 || echo "STATE DIR MISSING"
+          echo "=== Config ==="
+          sudo dokku config:show test-paperless 2>&1 || true
+          echo "=== Storage ==="
+          sudo dokku storage:report test-paperless 2>&1 || true
+          echo "=== PostgreSQL ==="
+          sudo dokku postgres:exists test-paperless-db && echo "DB EXISTS" || echo "DB MISSING"
+          sudo dokku postgres:linked test-paperless-db test-paperless && echo "DB LINKED" || echo "DB NOT LINKED"
+      - name: Run paperless-ngx e2e tests
+        run: npx playwright test tests/e2e/paperless-ngx.spec.ts --project=integration
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-paperless-ngx-results
+          path: playwright-report/
+      - name: Collect logs on failure
+        if: failure()
+        run: |
+          echo "=== Dokku apps ==="
+          sudo dokku apps:list 2>/dev/null || true
+          echo "=== ps:report ==="
+          sudo dokku ps:report 2>/dev/null || true
+          echo "=== Docker containers ==="
+          sudo docker ps -a 2>/dev/null || true
+          echo "=== Docker logs ==="
+          for container in $(sudo docker ps -aq 2>/dev/null); do
+            echo "--- Container $container ---"
+            sudo docker logs --tail 50 "$container" 2>/dev/null || true
+          done
+          echo "=== Library state ==="
+          ls -laR /var/lib/dokku/services/library/apps/ 2>&1 || echo "No state dir"
+          echo "=== PostgreSQL info ==="
+          sudo dokku postgres:info test-paperless-db 2>&1 || true
