@@ -99,7 +99,8 @@ echo "-----> Creating app $app_name"
 dokku_cmd apps:create "$app_name"
 
 # Scheduler settings (e.g. disable init process for s6-overlay images)
-init_process="$(get_manifest_field "$manifest" '.scheduler.init_process // empty')"
+# Note: use has() check since jq's // operator treats false as falsy
+init_process="$(get_manifest_field "$manifest" 'if .scheduler and (.scheduler | has("init_process")) then .scheduler.init_process | tostring else empty end')"
 if [[ "$init_process" == "false" ]]; then
   echo "       Disabling init process (s6-overlay compatibility)"
   dokku_cmd scheduler-docker-local:set "$app_name" init-process false
