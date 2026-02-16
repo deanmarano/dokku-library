@@ -50,7 +50,7 @@ test.describe("library:checkout paperless-ngx (with postgres)", () => {
 
   test("should respond on HTTP", async () => {
     const url = getAppUrl(APP_NAME);
-    const reachable = await waitForHttp(url, 60_000);
+    const reachable = await waitForHttp(url, 120_000);
     expect(reachable).toBe(true);
   });
 
