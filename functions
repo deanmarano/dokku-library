@@ -120,13 +120,20 @@ generate_secret_base64() {
 # Parse a DATABASE_URL into individual env vars with a given prefix.
 # e.g. parse_database_url "mysql://user:pass@host:3306/dbname" "database__connection"
 # outputs: database__connection__user=user database__connection__password=pass ...
+# Optional third arg: separator (default "__") and fourth arg: case ("lower" or "upper", default "lower")
 parse_database_url() {
   local url="$1"
   local prefix="$2"
+  local sep="${3:-__}"
+  local case="${4:-lower}"
 
   # Match: protocol://user:password@host:port/database
   if [[ "$url" =~ ^[a-z]+://([^:]+):([^@]+)@([^:/]+):([0-9]+)/([^?]+) ]]; then
-    echo "${prefix}__user=${BASH_REMATCH[1]} ${prefix}__password=${BASH_REMATCH[2]} ${prefix}__host=${BASH_REMATCH[3]} ${prefix}__port=${BASH_REMATCH[4]} ${prefix}__database=${BASH_REMATCH[5]}"
+    if [[ "$case" == "upper" ]]; then
+      echo "${prefix}${sep}USER=${BASH_REMATCH[1]} ${prefix}${sep}PASSWORD=${BASH_REMATCH[2]} ${prefix}${sep}HOST=${BASH_REMATCH[3]} ${prefix}${sep}PORT=${BASH_REMATCH[4]} ${prefix}${sep}NAME=${BASH_REMATCH[5]}"
+    else
+      echo "${prefix}${sep}user=${BASH_REMATCH[1]} ${prefix}${sep}password=${BASH_REMATCH[2]} ${prefix}${sep}host=${BASH_REMATCH[3]} ${prefix}${sep}port=${BASH_REMATCH[4]} ${prefix}${sep}database=${BASH_REMATCH[5]}"
+    fi
   fi
 }
 
