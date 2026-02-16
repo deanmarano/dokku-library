@@ -10,7 +10,7 @@
     "dokku-auth": { "required": false, "default": true }
   },
   "env": {
-    "BASE_URL": "https://%DOMAIN%",
+    "BASE_URL": "http://%DOMAIN%",
     "SECRET_KEY_BASE": "%SECRET%",
     "TOTP_VAULT_KEY": "%SECRET%",
     "DISABLE_REGISTRATION": "invite_only"
