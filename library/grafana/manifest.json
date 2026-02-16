@@ -4,13 +4,13 @@
   "image": "grafana/grafana:latest",
   "url": "https://grafana.com",
   "plugins": {
-    "postgres": { "required": false, "default": true },
+    "postgres": { "required": false, "default": true, "connection_env": "GF_DATABASE_URL" },
     "letsencrypt": { "required": false, "default": true },
     "dokku-mail": { "required": false, "default": false },
     "dokku-auth": { "required": false, "default": true, "integration": "oidc" }
   },
   "env": {
-    "GF_SERVER_ROOT_URL": "https://%DOMAIN%",
+    "GF_SERVER_ROOT_URL": "http://%DOMAIN%",
     "GF_DATABASE_TYPE": "postgres",
     "GF_SECURITY_ADMIN_PASSWORD": "%SECRET%"
   },
