@@ -4,7 +4,16 @@
   "image": "gitea/gitea:latest",
   "url": "https://gitea.io",
   "plugins": {
-    "postgres": { "required": true },
+    "postgres": {
+      "required": true,
+      "connection_env_map": {
+        "host": "GITEA__database__HOST",
+        "port": "GITEA__database__PORT",
+        "user": "GITEA__database__USER",
+        "password": "GITEA__database__PASSWD",
+        "name": "GITEA__database__NAME"
+      }
+    },
     "letsencrypt": { "required": false, "default": true },
     "dokku-mail": { "required": false, "default": false },
     "dokku-auth": { "required": false, "default": true, "integration": "oidc" }
@@ -12,7 +21,7 @@
   "env": {
     "GITEA__database__DB_TYPE": "postgres",
     "GITEA__server__DOMAIN": "%DOMAIN%",
-    "GITEA__server__ROOT_URL": "https://%DOMAIN%/",
+    "GITEA__server__ROOT_URL": "http://%DOMAIN%/",
     "GITEA__server__SSH_DOMAIN": "%DOMAIN%",
     "GITEA__security__SECRET_KEY": "%SECRET%",
     "GITEA__security__INTERNAL_TOKEN": "%SECRET%"
