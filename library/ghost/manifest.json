@@ -11,7 +11,7 @@
   },
   "env": {
     "NODE_ENV": "production",
-    "url": "https://%DOMAIN%",
+    "url": "http://%DOMAIN%",
     "database__client": "mysql"
   },
   "prompts": [
