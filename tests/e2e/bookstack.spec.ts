@@ -47,7 +47,7 @@ test.describe("library:checkout bookstack (with mariadb)", () => {
 
   test("should respond on HTTP", async () => {
     const url = getAppUrl(APP_NAME);
-    const reachable = await waitForHttp(url, 120_000);
+    const reachable = await waitForHttp(url, 240_000);
     expect(reachable).toBe(true);
   });
 

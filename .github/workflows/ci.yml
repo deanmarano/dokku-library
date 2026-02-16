@@ -1534,6 +1534,14 @@ jobs:
           echo "=== MariaDB ==="
           sudo dokku mariadb:exists test-bookstack-db && echo "DB EXISTS" || echo "DB MISSING"
           sudo dokku mariadb:linked test-bookstack-db test-bookstack && echo "DB LINKED" || echo "DB NOT LINKED"
+          echo "=== Bookstack container logs ==="
+          BOOKSTACK_CID=$(sudo docker ps -q --filter "name=test-bookstack.web" 2>/dev/null || true)
+          if [ -n "$BOOKSTACK_CID" ]; then
+            sudo docker logs "$BOOKSTACK_CID" 2>&1 | tail -50
+          else
+            echo "No bookstack container found"
+            sudo docker ps -a 2>/dev/null || true
+          fi
       - name: Run bookstack e2e tests
         run: npx playwright test tests/e2e/bookstack.spec.ts --project=integration
       - name: Upload test results
