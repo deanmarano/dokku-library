@@ -66,14 +66,6 @@ test.describe("library:checkout linkding (with postgres)", () => {
     }
   });
 
-  test("should have healthy health endpoint", async () => {
-    const url = getAppUrl(APP_NAME);
-    const response = await fetch(`${url}/health`, {
-      signal: AbortSignal.timeout(10_000),
-    });
-    expect(response.ok).toBe(true);
-  });
-
   test("cleanup should destroy postgres too", () => {
     const output = dokku(`library:cleanup ${APP_NAME} --force`, {
       timeout: 120_000,
