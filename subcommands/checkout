@@ -196,6 +196,36 @@ if [[ "$mariadb_required" == "true" || "$mariadb_default" == "true" ]]; then
   fi
 fi
 
+# Redis
+redis_required="$(get_manifest_field "$manifest" '.plugins.redis.required // false')"
+redis_default="$(get_manifest_field "$manifest" '.plugins.redis.default // false')"
+if [[ "$redis_required" == "true" || "$redis_default" == "true" ]]; then
+  if check_plugin_available "redis"; then
+    redis_service="${app_name}-redis"
+    echo "       Setting up Redis: $redis_service"
+    dokku_cmd redis:create "$redis_service" || true
+    dokku_cmd redis:link "$redis_service" "$app_name" || true
+    set_app_state "$app_name" "plugins/redis" "$redis_service"
+
+    # If the manifest specifies a connection_env, copy REDIS_URL to that env var
+    redis_connection_env="$(get_manifest_field "$manifest" '.plugins.redis.connection_env // empty')"
+    if [[ -n "$redis_connection_env" ]]; then
+      redis_url="$(dokku_cmd config:get "$app_name" "REDIS_URL" 2>/dev/null || echo "")"
+      if [[ -n "$redis_url" ]]; then
+        echo "       Setting $redis_connection_env from REDIS_URL"
+        dokku_cmd config:set --no-restart "$app_name" "$redis_connection_env=$redis_url"
+      fi
+    fi
+  else
+    if [[ "$redis_required" == "true" ]]; then
+      echo "!     Redis plugin required but not installed" >&2
+      dokku_cmd apps:destroy "$app_name" --force
+      exit 1
+    fi
+    echo "       Redis plugin not available, skipping"
+  fi
+fi
+
 # Set environment variables
 echo "-----> Setting environment variables"
 env_keys="$(get_manifest_field "$manifest" '.env | keys[]' 2>/dev/null || true)"

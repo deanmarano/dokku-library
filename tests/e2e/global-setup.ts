@@ -29,5 +29,13 @@ export default function globalSetup() {
     );
   }
 
+  if (pluginAvailable("redis")) {
+    console.log("  [OK] redis plugin available");
+  } else {
+    console.log(
+      "  [WARN] redis plugin not available - redis-dependent tests will be skipped"
+    );
+  }
+
   console.log("Global setup complete.");
 }

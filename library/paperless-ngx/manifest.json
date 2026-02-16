@@ -5,6 +5,7 @@
   "url": "https://docs.paperless-ngx.com",
   "plugins": {
     "postgres": { "required": true },
+    "redis": { "required": true, "connection_env": "PAPERLESS_REDIS" },
     "letsencrypt": { "required": false, "default": true },
     "dokku-mail": { "required": false, "default": false },
     "dokku-auth": { "required": false, "default": true }

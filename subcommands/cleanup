@@ -56,6 +56,14 @@ if [[ -f "$PLUGIN_DATA_ROOT/apps/$app_name/plugins/mariadb" ]]; then
   dokku_cmd mariadb:destroy "$db_service" -f 2>/dev/null || true
 fi
 
+# Unlink and destroy redis
+if [[ -f "$PLUGIN_DATA_ROOT/apps/$app_name/plugins/redis" ]]; then
+  redis_service="$(cat "$PLUGIN_DATA_ROOT/apps/$app_name/plugins/redis")"
+  echo "       Removing Redis: $redis_service"
+  dokku_cmd redis:unlink "$redis_service" "$app_name" 2>/dev/null || true
+  dokku_cmd redis:destroy "$redis_service" -f 2>/dev/null || true
+fi
+
 # Unlink mail
 if [[ -f "$PLUGIN_DATA_ROOT/apps/$app_name/plugins/dokku-mail" ]]; then
   mail_service="$(cat "$PLUGIN_DATA_ROOT/apps/$app_name/plugins/dokku-mail")"

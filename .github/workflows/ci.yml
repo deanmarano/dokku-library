@@ -1219,6 +1219,8 @@ jobs:
           sudo dokku plugin:install-dependencies --core
       - name: Install dokku-postgres
         run: sudo dokku plugin:install https://github.com/dokku/dokku-postgres.git postgres
+      - name: Install dokku-redis
+        run: sudo dokku plugin:install https://github.com/dokku/dokku-redis.git redis
       - name: Install library plugin
         run: |
           sudo mkdir -p /var/lib/dokku/plugins/available/library/subcommands
@@ -1253,6 +1255,9 @@ jobs:
           echo "=== PostgreSQL ==="
           sudo dokku postgres:exists test-paperless-db && echo "DB EXISTS" || echo "DB MISSING"
           sudo dokku postgres:linked test-paperless-db test-paperless && echo "DB LINKED" || echo "DB NOT LINKED"
+          echo "=== Redis ==="
+          sudo dokku redis:exists test-paperless-redis && echo "REDIS EXISTS" || echo "REDIS MISSING"
+          sudo dokku redis:linked test-paperless-redis test-paperless && echo "REDIS LINKED" || echo "REDIS NOT LINKED"
       - name: Run paperless-ngx e2e tests
         run: npx playwright test tests/e2e/paperless-ngx.spec.ts --project=integration
       - name: Upload test results
@@ -1279,3 +1284,5 @@ jobs:
           ls -laR /var/lib/dokku/services/library/apps/ 2>&1 || echo "No state dir"
           echo "=== PostgreSQL info ==="
           sudo dokku postgres:info test-paperless-db 2>&1 || true
+          echo "=== Redis info ==="
+          sudo dokku redis:info test-paperless-redis 2>&1 || true

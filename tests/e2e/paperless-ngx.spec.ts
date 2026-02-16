@@ -11,9 +11,10 @@ import {
 
 const APP_NAME = "test-paperless";
 
-test.describe("library:checkout paperless-ngx (with postgres)", () => {
+test.describe("library:checkout paperless-ngx (with postgres + redis)", () => {
   test.beforeAll(() => {
     test.skip(!pluginAvailable("postgres"), "postgres plugin not available");
+    test.skip(!pluginAvailable("redis"), "redis plugin not available");
 
     if (!appExists(APP_NAME)) {
       dokku(
@@ -30,6 +31,14 @@ test.describe("library:checkout paperless-ngx (with postgres)", () => {
   test("should have postgres service created and linked", () => {
     const dbService = `${APP_NAME}-db`;
     const exists = dokku(`postgres:exists ${dbService}`, {
+      ignoreError: true,
+    });
+    expect(exists).not.toContain("does not exist");
+  });
+
+  test("should have redis service created and linked", () => {
+    const redisService = `${APP_NAME}-redis`;
+    const exists = dokku(`redis:exists ${redisService}`, {
       ignoreError: true,
     });
     expect(exists).not.toContain("does not exist");
@@ -65,11 +74,12 @@ test.describe("library:checkout paperless-ngx (with postgres)", () => {
     expect(body.toLowerCase()).toContain("paperless");
   });
 
-  test("cleanup should destroy postgres too", () => {
+  test("cleanup should destroy postgres and redis too", () => {
     const output = dokku(`library:cleanup ${APP_NAME} --force`, {
       timeout: 120_000,
     });
     expect(output).toContain("cleaned up successfully");
     expect(output).toContain("PostgreSQL");
+    expect(output).toContain("Redis");
   });
 });
