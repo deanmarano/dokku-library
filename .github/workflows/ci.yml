@@ -8,7 +8,72 @@ on:
     types: [opened, synchronize, reopened, labeled]
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      core: ${{ steps.filter.outputs.core }}
+      lint: ${{ steps.filter.outputs.lint }}
+      unit-tests: ${{ steps.filter.outputs.unit-tests }}
+      e2e-checkout: ${{ steps.filter.outputs.e2e-checkout }}
+      e2e-lifecycle: ${{ steps.filter.outputs.e2e-lifecycle }}
+      e2e-doctor: ${{ steps.filter.outputs.e2e-doctor }}
+      e2e-ghost: ${{ steps.filter.outputs.e2e-ghost }}
+      e2e-linkding: ${{ steps.filter.outputs.e2e-linkding }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            core:
+              - 'commands'
+              - 'config'
+              - 'functions'
+              - 'install'
+              - 'plugin.toml'
+              - 'subcommands/**'
+              - 'tests/e2e/helpers.ts'
+              - 'tests/e2e/global-setup.ts'
+              - 'tests/e2e/global-teardown.ts'
+              - 'playwright.config.ts'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'tsconfig.json'
+              - '.github/workflows/ci.yml'
+            lint:
+              - 'commands'
+              - 'config'
+              - 'functions'
+              - 'install'
+              - 'subcommands/**'
+              - '.github/workflows/ci.yml'
+            unit-tests:
+              - 'library/**'
+              - 'tests/unit/**'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'tsconfig.json'
+              - '.github/workflows/ci.yml'
+            e2e-checkout:
+              - 'tests/e2e/checkout.spec.ts'
+              - 'library/uptime-kuma/**'
+            e2e-lifecycle:
+              - 'tests/e2e/lifecycle.spec.ts'
+              - 'library/uptime-kuma/**'
+            e2e-doctor:
+              - 'tests/e2e/doctor.spec.ts'
+              - 'subcommands/doctor*'
+              - 'library/uptime-kuma/**'
+            e2e-ghost:
+              - 'tests/e2e/ghost.spec.ts'
+              - 'library/ghost/**'
+            e2e-linkding:
+              - 'tests/e2e/linkding.spec.ts'
+              - 'library/linkding/**'
+
   lint:
+    needs: [changes]
+    if: needs.changes.outputs.lint == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -18,6 +83,8 @@ jobs:
         run: shellcheck -x commands config install functions subcommands/*
 
   unit-tests:
+    needs: [changes]
+    if: needs.changes.outputs.unit-tests == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -29,12 +96,11 @@ jobs:
       - name: Run unit tests
         run: npm run test:unit
 
-  # --- E2E jobs: enabling one-by-one ---
-  # Known issues remaining:
-  #   - dokku-auth repo doesn't exist yet (all e2e-app jobs)
-
   e2e-checkout:
-    needs: [lint, unit-tests]
+    needs: [changes, lint, unit-tests]
+    if: |
+      !failure() && !cancelled() &&
+      (needs.changes.outputs.core == 'true' || needs.changes.outputs.e2e-checkout == 'true')
     runs-on: ubuntu-22.04
     timeout-minutes: 30
     steps:
@@ -56,25 +122,18 @@ jobs:
         run: sudo dokku plugin:install https://github.com/dokku/dokku-postgres.git postgres
       - name: Install library plugin
         run: |
-          # Create plugin directory and copy essential files
           sudo mkdir -p /var/lib/dokku/plugins/available/library/subcommands
           sudo mkdir -p /var/lib/dokku/plugins/available/library/library
           sudo cp commands config functions install plugin.toml /var/lib/dokku/plugins/available/library/
           sudo cp subcommands/* /var/lib/dokku/plugins/available/library/subcommands/
           sudo cp -r library/* /var/lib/dokku/plugins/available/library/library/
-          # Make scripts executable
           sudo chmod +x /var/lib/dokku/plugins/available/library/commands
           sudo chmod +x /var/lib/dokku/plugins/available/library/subcommands/*
-          # plugin:enable exits 10 during bash-completion priming (DOKKU_NOT_IMPLEMENTED_EXIT) — expected
           sudo dokku plugin:enable library || true
-          # Run the plugin install hook to create data directories
           sudo bash /var/lib/dokku/plugins/enabled/library/install
-          # Verify the plugin is registered
           sudo dokku library:list
       - name: Deploy test app via bash
         run: |
-          # dokku's plugn/go-basher dispatch requires a bash parent process for
-          # complex commands like git:from-image. Run checkout from bash directly.
           echo "127.0.0.1 test-uptime-kuma.test.local" | sudo tee -a /etc/hosts
           sudo dokku library:checkout uptime-kuma \
             --name=test-uptime-kuma \
@@ -135,7 +194,10 @@ jobs:
           ls -la /home/dokku/test-uptime-kuma/DEPLOYED 2>&1 || echo "DEPLOYED file missing"
 
   e2e-lifecycle:
-    needs: [lint, unit-tests]
+    needs: [changes, lint, unit-tests]
+    if: |
+      !failure() && !cancelled() &&
+      (needs.changes.outputs.core == 'true' || needs.changes.outputs.e2e-lifecycle == 'true')
     runs-on: ubuntu-22.04
     timeout-minutes: 30
     steps:
@@ -208,7 +270,10 @@ jobs:
           ls -laR /var/lib/dokku/services/library/apps/ 2>&1 || echo "No state dir"
 
   e2e-doctor:
-    needs: [lint, unit-tests]
+    needs: [changes, lint, unit-tests]
+    if: |
+      !failure() && !cancelled() &&
+      (needs.changes.outputs.core == 'true' || needs.changes.outputs.e2e-doctor == 'true')
     runs-on: ubuntu-22.04
     timeout-minutes: 30
     steps:
@@ -289,7 +354,10 @@ jobs:
           sudo dokku library:doctor test-doctor-app 2>&1 || true
 
   e2e-ghost:
-    needs: [lint, unit-tests]
+    needs: [changes, lint, unit-tests]
+    if: |
+      !failure() && !cancelled() &&
+      (needs.changes.outputs.core == 'true' || needs.changes.outputs.e2e-ghost == 'true')
     runs-on: ubuntu-22.04
     timeout-minutes: 30
     steps:
@@ -369,7 +437,10 @@ jobs:
           sudo dokku mariadb:info test-ghost-db 2>&1 || true
 
   e2e-linkding:
-    needs: [lint, unit-tests]
+    needs: [changes, lint, unit-tests]
+    if: |
+      !failure() && !cancelled() &&
+      (needs.changes.outputs.core == 'true' || needs.changes.outputs.e2e-linkding == 'true')
     runs-on: ubuntu-22.04
     timeout-minutes: 30
     steps:
@@ -447,103 +518,3 @@ jobs:
           ls -laR /var/lib/dokku/services/library/apps/ 2>&1 || echo "No state dir"
           echo "=== PostgreSQL info ==="
           sudo dokku postgres:info test-linkding-db 2>&1 || true
-
-  # e2e-doctor:
-  #   needs: [lint, unit-tests]
-  #   runs-on: ubuntu-22.04
-  #   timeout-minutes: 30
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - uses: actions/setup-node@v4
-  #       with:
-  #         node-version: "20"
-  #     - name: Install dependencies
-  #       run: npm ci && npx playwright install --with-deps
-  #     - name: Install Dokku
-  #       run: |
-  #         wget -NP . https://packagecloud.io/dokku/dokku/gpgkey
-  #         sudo apt-key add gpgkey
-  #         echo "deb https://packagecloud.io/dokku/dokku/ubuntu/ jammy main" | sudo tee /etc/apt/sources.list.d/dokku.list
-  #         sudo apt-get update
-  #         sudo DEBIAN_FRONTEND=noninteractive apt-get install -y dokku
-  #         sudo dokku plugin:install-dependencies --core
-  #     - name: Install dokku-postgres
-  #       run: sudo dokku plugin:install https://github.com/dokku/dokku-postgres.git postgres
-  #     - name: Install library plugin
-  #       run: |
-  #         sudo ln -s ${{ github.workspace }} /var/lib/dokku/plugins/available/library
-  #         sudo dokku plugin:enable library
-  #     - name: Run doctor e2e tests
-  #       run: npx playwright test doctor
-  #     - name: Upload test results
-  #       uses: actions/upload-artifact@v4
-  #       if: always()
-  #       with:
-  #         name: e2e-doctor-results
-  #         path: playwright-report/
-  #     - name: Collect logs on failure
-  #       if: failure()
-  #       run: |
-  #         sudo dokku apps:list 2>/dev/null || true
-  #         sudo dokku ps:report 2>/dev/null || true
-  #         sudo docker ps -a 2>/dev/null || true
-
-  # e2e-app:
-  #   needs: [lint, unit-tests, changes]
-  #   if: ${{ needs.changes.outputs.app-matrix != '[]' }}
-  #   strategy:
-  #     fail-fast: false
-  #     matrix:
-  #       app: ${{ fromJson(needs.changes.outputs.app-matrix) }}
-  #   runs-on: ubuntu-22.04
-  #   timeout-minutes: 30
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - uses: actions/setup-node@v4
-  #       with:
-  #         node-version: "20"
-  #     - name: Install dependencies
-  #       run: npm ci && npx playwright install --with-deps
-  #     - name: Install Dokku
-  #       run: |
-  #         wget -NP . https://packagecloud.io/dokku/dokku/gpgkey
-  #         sudo apt-key add gpgkey
-  #         echo "deb https://packagecloud.io/dokku/dokku/ubuntu/ jammy main" | sudo tee /etc/apt/sources.list.d/dokku.list
-  #         sudo apt-get update
-  #         sudo DEBIAN_FRONTEND=noninteractive apt-get install -y dokku
-  #         sudo dokku plugin:install-dependencies --core
-  #     - name: Install dokku-postgres
-  #       run: sudo dokku plugin:install https://github.com/dokku/dokku-postgres.git postgres
-  #     - name: Install dokku-auth
-  #       run: sudo dokku plugin:install https://github.com/deanmarano/dokku-auth.git auth
-  #     - name: Install library plugin
-  #       run: |
-  #         sudo ln -s ${{ github.workspace }} /var/lib/dokku/plugins/available/library
-  #         sudo dokku plugin:enable library
-  #     - name: Run ${{ matrix.app }} e2e tests
-  #       run: npx playwright test tests/e2e/apps/${{ matrix.app }}.spec.ts
-  #     - name: Upload test results
-  #       uses: actions/upload-artifact@v4
-  #       if: always()
-  #       with:
-  #         name: e2e-app-${{ matrix.app }}-results
-  #         path: |
-  #           playwright-report/
-  #           test-results/
-  #     - name: Collect logs on failure
-  #       if: failure()
-  #       run: |
-  #         echo "=== Dokku apps ==="
-  #         sudo dokku apps:list 2>/dev/null || true
-  #         echo "=== Process report ==="
-  #         sudo dokku ps:report 2>/dev/null || true
-  #         echo "=== Docker containers ==="
-  #         sudo docker ps -a 2>/dev/null || true
-  #         echo "=== Auth services ==="
-  #         sudo dokku auth:list 2>/dev/null || true
-  #         sudo dokku auth:frontend:list 2>/dev/null || true
-  #         echo "=== Docker logs ==="
-  #         for container in $(sudo docker ps -aq 2>/dev/null); do
-  #           echo "--- Container $container ---"
-  #           sudo docker logs --tail 50 "$container" 2>/dev/null || true
-  #         done
