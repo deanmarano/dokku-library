@@ -49,5 +49,8 @@
   "storage": [
     "/var/lib/dokku/data/storage/bookstack-%APP_NAME%:/config"
   ],
-  "docker_options": {}
+  "docker_options": {},
+  "scheduler": {
+    "init_process": false
+  }
 }
