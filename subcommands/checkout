@@ -90,8 +90,9 @@ done
 
 domain="${prompt_values[DOMAIN]:-$app_name.$(hostname -f 2>/dev/null || hostname)}"
 
-# Generate a secret for env var substitution
+# Generate secrets for env var substitution
 secret="$(generate_secret 32)"
+secret_base64="$(generate_secret_base64 32)"
 
 # Create the dokku app
 echo "-----> Creating app $app_name"
@@ -174,7 +175,7 @@ env_args=""
 if [[ -n "$env_keys" ]]; then
   while IFS= read -r key; do
     value="$(get_manifest_field "$manifest" ".env[\"$key\"]")"
-    value="$(resolve_env_value "$value" "$domain" "$app_name" "$secret")"
+    value="$(resolve_env_value "$value" "$domain" "$app_name" "$secret" "$secret_base64")"
     env_args="$env_args $key=$value"
     set_app_state "$app_name" "env/$key" "$value"
   done <<<"$env_keys"

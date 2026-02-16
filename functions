@@ -88,10 +88,12 @@ resolve_env_value() {
   local domain="$2"
   local app_name="$3"
   local secret="$4"
+  local secret_base64="${5:-}"
 
   value="${value//%DOMAIN%/$domain}"
   value="${value//%APP_NAME%/$app_name}"
   value="${value//%SECRET%/$secret}"
+  value="${value//%SECRET_BASE64_32%/$secret_base64}"
 
   echo "$value"
 }
@@ -108,6 +110,11 @@ check_plugin_available() {
 generate_secret() {
   local length="${1:-32}"
   openssl rand -hex "$length"
+}
+
+generate_secret_base64() {
+  local length="${1:-32}"
+  openssl rand -base64 "$length"
 }
 
 # Parse a DATABASE_URL into individual env vars with a given prefix.

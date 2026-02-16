@@ -6,7 +6,7 @@ const LIBRARY_DIR = resolve(import.meta.dirname, "../../library");
 
 const REQUIRED_FIELDS = ["name", "description", "image", "plugins"];
 const KNOWN_PLUGINS = ["postgres", "mariadb", "letsencrypt", "dokku-mail", "dokku-auth"];
-const KNOWN_PLACEHOLDERS = ["%DOMAIN%", "%APP_NAME%", "%SECRET%", "%HOSTNAME%"];
+const KNOWN_PLACEHOLDERS = ["%DOMAIN%", "%APP_NAME%", "%SECRET%", "%SECRET_BASE64_32%", "%HOSTNAME%"];
 const IMAGE_PATTERN = /^[a-z0-9._/-]+:[a-z0-9._-]+$/i;
 
 function getManifestDirs(): string[] {

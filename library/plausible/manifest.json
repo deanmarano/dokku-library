@@ -12,7 +12,7 @@
   "env": {
     "BASE_URL": "http://%DOMAIN%",
     "SECRET_KEY_BASE": "%SECRET%",
-    "TOTP_VAULT_KEY": "%SECRET%",
+    "TOTP_VAULT_KEY": "%SECRET_BASE64_32%",
     "DISABLE_REGISTRATION": "invite_only"
   },
   "prompts": [
