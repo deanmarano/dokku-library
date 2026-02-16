@@ -17,7 +17,7 @@ export default defineConfig({
     {
       name: "integration",
       testDir: "./tests/e2e",
-      testMatch: ["checkout.spec.ts", "doctor.spec.ts", "lifecycle.spec.ts", "ghost.spec.ts", "linkding.spec.ts", "miniflux.spec.ts"],
+      testMatch: ["checkout.spec.ts", "doctor.spec.ts", "lifecycle.spec.ts", "ghost.spec.ts", "linkding.spec.ts", "miniflux.spec.ts", "vaultwarden.spec.ts"],
     },
     {
       name: "apps",

@@ -10,11 +10,10 @@
     "dokku-auth": { "required": false, "default": true }
   },
   "env": {
-    "DOMAIN": "https://%DOMAIN%",
+    "DOMAIN": "http://%DOMAIN%",
     "SIGNUPS_ALLOWED": "false",
     "ADMIN_TOKEN": "%SECRET%",
-    "ROCKET_PORT": "8080",
-    "DATABASE_URL": ""
+    "ROCKET_PORT": "8080"
   },
   "prompts": [
     {
