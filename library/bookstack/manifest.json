@@ -19,6 +19,7 @@
     "dokku-auth": { "required": false, "default": true, "integration": "ldap" }
   },
   "env": {
+    "APP_KEY": "base64:%SECRET_BASE64_32%",
     "APP_URL": "http://%DOMAIN%",
     "DB_CONNECTION": "mysql",
     "PUID": "1000",
