@@ -26,7 +26,7 @@ jobs:
       e2e-sonarr: ${{ steps.filter.outputs.e2e-sonarr }}
       e2e-jellyfin: ${{ steps.filter.outputs.e2e-jellyfin }}
       e2e-uptime-kuma: ${{ steps.filter.outputs.e2e-uptime-kuma }}
-      e2e-wallabag: ${{ steps.filter.outputs.e2e-wallabag }}
+      e2e-mealie: ${{ steps.filter.outputs.e2e-mealie }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -99,9 +99,9 @@ jobs:
             e2e-uptime-kuma:
               - 'tests/e2e/uptime-kuma.spec.ts'
               - 'library/uptime-kuma/**'
-            e2e-wallabag:
-              - 'tests/e2e/wallabag.spec.ts'
-              - 'library/wallabag/**'
+            e2e-mealie:
+              - 'tests/e2e/mealie.spec.ts'
+              - 'library/mealie/**'
 
   lint:
     needs: [changes]
@@ -1106,11 +1106,11 @@ jobs:
           echo "=== Library state ==="
           ls -laR /var/lib/dokku/services/library/apps/ 2>&1 || echo "No state dir"
 
-  e2e-wallabag:
+  e2e-mealie:
     needs: [changes, lint, unit-tests]
     if: |
       !failure() && !cancelled() &&
-      (needs.changes.outputs.core == 'true' || needs.changes.outputs.e2e-wallabag == 'true')
+      (needs.changes.outputs.core == 'true' || needs.changes.outputs.e2e-mealie == 'true')
     runs-on: ubuntu-22.04
     timeout-minutes: 30
     steps:
@@ -1142,33 +1142,35 @@ jobs:
           sudo dokku plugin:enable library || true
           sudo bash /var/lib/dokku/plugins/enabled/library/install
           sudo dokku library:list
-      - name: Deploy wallabag via bash
+      - name: Deploy mealie via bash
         run: |
-          echo "127.0.0.1 test-wallabag.test.local" | sudo tee -a /etc/hosts
-          sudo dokku library:checkout wallabag \
-            --name=test-wallabag \
-            --domain=test-wallabag.test.local \
+          echo "127.0.0.1 test-mealie.test.local" | sudo tee -a /etc/hosts
+          sudo dokku library:checkout mealie \
+            --name=test-mealie \
+            --domain=test-mealie.test.local \
             --no-ssl --no-auth --non-interactive
       - name: Verify deployment state
         run: |
           echo "=== App exists? ==="
-          sudo dokku apps:exists test-wallabag && echo "YES" || echo "NO"
+          sudo dokku apps:exists test-mealie && echo "YES" || echo "NO"
           echo "=== ps:report ==="
-          sudo dokku ps:report test-wallabag 2>&1 || true
+          sudo dokku ps:report test-mealie 2>&1 || true
           echo "=== Library state ==="
-          ls -laR /var/lib/dokku/services/library/apps/test-wallabag/ 2>&1 || echo "STATE DIR MISSING"
+          ls -laR /var/lib/dokku/services/library/apps/test-mealie/ 2>&1 || echo "STATE DIR MISSING"
           echo "=== Config ==="
-          sudo dokku config:show test-wallabag 2>&1 || true
+          sudo dokku config:show test-mealie 2>&1 || true
+          echo "=== Storage ==="
+          sudo dokku storage:report test-mealie 2>&1 || true
           echo "=== PostgreSQL ==="
-          sudo dokku postgres:exists test-wallabag-db && echo "DB EXISTS" || echo "DB MISSING"
-          sudo dokku postgres:linked test-wallabag-db test-wallabag && echo "DB LINKED" || echo "DB NOT LINKED"
-      - name: Run wallabag e2e tests
-        run: npx playwright test tests/e2e/wallabag.spec.ts --project=integration
+          sudo dokku postgres:exists test-mealie-db && echo "DB EXISTS" || echo "DB MISSING"
+          sudo dokku postgres:linked test-mealie-db test-mealie && echo "DB LINKED" || echo "DB NOT LINKED"
+      - name: Run mealie e2e tests
+        run: npx playwright test tests/e2e/mealie.spec.ts --project=integration
       - name: Upload test results
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: e2e-wallabag-results
+          name: e2e-mealie-results
           path: playwright-report/
       - name: Collect logs on failure
         if: failure()
@@ -1187,4 +1189,4 @@ jobs:
           echo "=== Library state ==="
           ls -laR /var/lib/dokku/services/library/apps/ 2>&1 || echo "No state dir"
           echo "=== PostgreSQL info ==="
-          sudo dokku postgres:info test-wallabag-db 2>&1 || true
+          sudo dokku postgres:info test-mealie-db 2>&1 || true
