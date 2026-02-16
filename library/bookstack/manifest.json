@@ -4,13 +4,22 @@
   "image": "lscr.io/linuxserver/bookstack:latest",
   "url": "https://www.bookstackapp.com",
   "plugins": {
-    "postgres": { "required": true },
+    "postgres": {
+      "required": true,
+      "connection_env_map": {
+        "host": "DB_HOST",
+        "port": "DB_PORT",
+        "user": "DB_USER",
+        "password": "DB_PASS",
+        "name": "DB_DATABASE"
+      }
+    },
     "letsencrypt": { "required": false, "default": true },
     "dokku-mail": { "required": false, "default": true },
     "dokku-auth": { "required": false, "default": true, "integration": "ldap" }
   },
   "env": {
-    "APP_URL": "https://%DOMAIN%",
+    "APP_URL": "http://%DOMAIN%",
     "DB_CONNECTION": "pgsql",
     "PUID": "1000",
     "PGID": "1000",
