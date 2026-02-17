@@ -1,0 +1,34 @@
+library:
+  description: Self-hosted file sync and collaboration platform
+  url: https://nextcloud.com
+  prompts:
+    - key: DOMAIN
+      question: Domain for Nextcloud
+      default: nextcloud.%HOSTNAME%
+
+services:
+  db:
+    type: postgres
+
+apps:
+  nextcloud:
+    image: nextcloud:stable
+    domains: ["%DOMAIN%"]
+    links:
+      postgres: db
+    env:
+      POSTGRES_HOST: ""
+      NEXTCLOUD_ADMIN_USER: admin
+      NEXTCLOUD_ADMIN_PASSWORD: "%SECRET%"
+      NEXTCLOUD_TRUSTED_DOMAINS: "%DOMAIN%"
+      OVERWRITEPROTOCOL: https
+      OVERWRITEHOST: "%DOMAIN%"
+    ports:
+      http: "80:80"
+    storage:
+      - "/var/lib/dokku/data/storage/nextcloud-%APP_NAME%:/var/www/html"
+    letsencrypt: true
+    healthchecks:
+      web:
+        - path: /status.php
+          timeout: 120

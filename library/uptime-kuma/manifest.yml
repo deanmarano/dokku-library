@@ -1,0 +1,21 @@
+library:
+  description: Self-hosted uptime monitoring tool
+  url: https://uptime.kuma.pet
+  prompts:
+    - key: DOMAIN
+      question: Domain for Uptime Kuma
+      default: uptime.%HOSTNAME%
+
+apps:
+  uptime-kuma:
+    image: "louislam/uptime-kuma:1"
+    domains: ["%DOMAIN%"]
+    ports:
+      http: "80:3001"
+    storage:
+      - "/var/lib/dokku/data/storage/uptime-kuma-%APP_NAME%:/app/data"
+    letsencrypt: true
+    healthchecks:
+      web:
+        - path: /
+          timeout: 60

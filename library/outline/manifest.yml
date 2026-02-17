@@ -1,0 +1,38 @@
+library:
+  description: Modern team wiki and knowledge base
+  url: https://www.getoutline.com
+  prompts:
+    - key: DOMAIN
+      question: Domain for Outline
+      default: outline.%HOSTNAME%
+
+services:
+  db:
+    type: postgres
+  redis:
+    type: redis
+
+apps:
+  outline:
+    image: outlinewiki/outline:latest
+    domains: ["%DOMAIN%"]
+    links:
+      postgres: db
+      redis: redis
+    env:
+      URL: "http://%DOMAIN%"
+      SECRET_KEY: "%SECRET%"
+      UTILS_SECRET: "%SECRET%"
+      FORCE_HTTPS: "false"
+      PGSSLMODE: disable
+      FILE_STORAGE: local
+      FILE_STORAGE_LOCAL_ROOT_DIR: /var/lib/outline/data
+    ports:
+      http: "80:3000"
+    storage:
+      - "/var/lib/dokku/data/storage/outline-%APP_NAME%:/var/lib/outline/data"
+    letsencrypt: true
+    healthchecks:
+      web:
+        - path: /_health
+          timeout: 60

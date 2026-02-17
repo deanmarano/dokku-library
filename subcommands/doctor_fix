@@ -18,92 +18,47 @@ if ! is_app_installed "$app_name"; then
   exit 1
 fi
 
-manifest_name="$(get_app_state "$app_name" "MANIFEST_NAME")"
-manifest="$(load_manifest "$manifest_name")"
 fixed_count=0
 
 echo "-----> Fixing $app_name"
 
-# Check app exists
-if ! dokku_cmd apps:exists "$app_name" 2>/dev/null; then
-  echo "       [FIX] Creating app $app_name"
-  dokku_cmd apps:create "$app_name"
+# Re-apply saved dokkufile if available
+saved_yaml="$(get_app_state "$app_name" "DOKKUFILE")"
+if [[ -n "$saved_yaml" ]] && check_plugin_available "dokkufile"; then
+  tmpfile="$(mktemp /tmp/dokkufile-XXXXXX.yml)"
+  echo "$saved_yaml" >"$tmpfile"
+
+  echo "       [FIX] Running dokkufile apply"
+  dokku_cmd dokkufile:apply -f "$tmpfile" || true
+  rm -f "$tmpfile"
   ((++fixed_count))
-fi
+else
+  # Fallback for apps installed before dokkufile migration
+  manifest_name="$(get_app_state "$app_name" "MANIFEST_NAME")"
+  manifest="$(load_manifest "$manifest_name")"
 
-# Check domain
-expected_domain="$(get_app_state "$app_name" "DOMAIN")"
-actual_domains="$(dokku_cmd domains:report "$app_name" --domains-app-vhosts 2>/dev/null || echo "")"
-if ! echo "$actual_domains" | grep -q "$expected_domain"; then
-  echo "       [FIX] Setting domain: $expected_domain"
-  dokku_cmd domains:set "$app_name" "$expected_domain"
-  ((++fixed_count))
-fi
-
-# Check proxy ports
-expected_ports="$(get_manifest_field "$manifest" '.proxy.ports // empty')"
-if [[ -n "$expected_ports" ]]; then
-  actual_ports="$(dokku_cmd ports:report "$app_name" --ports-map 2>/dev/null || echo "")"
-  if ! echo "$actual_ports" | grep -q "$(echo "$expected_ports" | tr ' ' '\n' | head -1)"; then
-    echo "       [FIX] Setting proxy ports: $expected_ports"
-    dokku_cmd ports:set "$app_name" "$expected_ports"
+  # Check app exists
+  if ! dokku_cmd apps:exists "$app_name" 2>/dev/null; then
+    echo "       [FIX] Creating app $app_name"
+    dokku_cmd apps:create "$app_name"
     ((++fixed_count))
   fi
-fi
 
-# Check environment variables
-env_keys="$(get_manifest_field "$manifest" '.env | keys[]' 2>/dev/null || true)"
-if [[ -n "$env_keys" ]]; then
-  env_fix_args=""
-  while IFS= read -r key; do
-    expected_value="$(get_app_state "$app_name" "env/$key")"
-    actual_value="$(dokku_cmd config:get "$app_name" "$key" 2>/dev/null || echo "")"
-
-    if [[ -z "$expected_value" ]]; then
-      continue
-    fi
-
-    if [[ "$actual_value" != "$expected_value" ]]; then
-      echo "       [FIX] Setting env: $key"
-      env_fix_args="$env_fix_args $key=$expected_value"
-      ((++fixed_count))
-    fi
-  done <<<"$env_keys"
-
-  if [[ -n "$env_fix_args" ]]; then
-    # shellcheck disable=SC2086
-    dokku_cmd config:set --no-restart "$app_name" $env_fix_args
-  fi
-fi
-
-# Check postgres
-if [[ -f "$PLUGIN_DATA_ROOT/apps/$app_name/plugins/postgres" ]]; then
-  db_service="$(cat "$PLUGIN_DATA_ROOT/apps/$app_name/plugins/postgres")"
-  if ! dokku_cmd postgres:exists "$db_service" 2>/dev/null; then
-    echo "       [FIX] Creating postgres service: $db_service"
-    dokku_cmd postgres:create "$db_service"
+  # Check domain
+  expected_domain="$(get_app_state "$app_name" "DOMAIN")"
+  actual_domains="$(dokku_cmd domains:report "$app_name" --domains-app-vhosts 2>/dev/null || echo "")"
+  if ! echo "$actual_domains" | grep -q "$expected_domain"; then
+    echo "       [FIX] Setting domain: $expected_domain"
+    dokku_cmd domains:set "$app_name" "$expected_domain"
     ((++fixed_count))
   fi
-  linked="$(dokku_cmd postgres:linked "$db_service" "$app_name" 2>/dev/null && echo "yes" || echo "no")"
-  if [[ "$linked" != "yes" ]]; then
-    echo "       [FIX] Linking postgres: $db_service"
-    dokku_cmd postgres:link "$db_service" "$app_name" || true
-    ((++fixed_count))
-  fi
-fi
 
-# Check mariadb
-if [[ -f "$PLUGIN_DATA_ROOT/apps/$app_name/plugins/mariadb" ]]; then
-  db_service="$(cat "$PLUGIN_DATA_ROOT/apps/$app_name/plugins/mariadb")"
-  if ! dokku_cmd mariadb:exists "$db_service" 2>/dev/null; then
-    echo "       [FIX] Creating mariadb service: $db_service"
-    dokku_cmd mariadb:create "$db_service"
-    ((++fixed_count))
-  fi
-  linked="$(dokku_cmd mariadb:linked "$db_service" "$app_name" 2>/dev/null && echo "yes" || echo "no")"
-  if [[ "$linked" != "yes" ]]; then
-    echo "       [FIX] Linking mariadb: $db_service"
-    dokku_cmd mariadb:link "$db_service" "$app_name" || true
+  # Check image and redeploy if needed
+  expected_image="$(get_app_state "$app_name" "IMAGE")"
+  actual_image="$(dokku_cmd git:report "$app_name" --git-source-image 2>/dev/null || echo "")"
+  if [[ -n "$expected_image" && "$actual_image" != *"$expected_image"* ]]; then
+    echo "       [FIX] Redeploying with image: $expected_image"
+    dokku_cmd git:from-image "$app_name" "$expected_image"
     ((++fixed_count))
   fi
 fi
@@ -116,15 +71,6 @@ if [[ -f "$PLUGIN_DATA_ROOT/apps/$app_name/plugins/letsencrypt" ]]; then
     dokku_cmd letsencrypt:enable "$app_name" || echo "       Warning: letsencrypt setup failed"
     ((++fixed_count))
   fi
-fi
-
-# Check image and redeploy if needed
-expected_image="$(get_app_state "$app_name" "IMAGE")"
-actual_image="$(dokku_cmd git:report "$app_name" --git-source-image 2>/dev/null || echo "")"
-if [[ -n "$expected_image" && "$actual_image" != *"$expected_image"* ]]; then
-  echo "       [FIX] Redeploying with image: $expected_image"
-  dokku_cmd git:from-image "$app_name" "$expected_image"
-  ((++fixed_count))
 fi
 
 # Check running

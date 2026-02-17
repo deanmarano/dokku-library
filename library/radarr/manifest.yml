@@ -1,0 +1,27 @@
+library:
+  description: Movie collection manager for Usenet and BitTorrent
+  url: https://radarr.video
+  prompts:
+    - key: DOMAIN
+      question: Domain for Radarr
+      default: radarr.%HOSTNAME%
+
+apps:
+  radarr:
+    image: "lscr.io/linuxserver/radarr:latest"
+    domains: ["%DOMAIN%"]
+    env:
+      PUID: "1000"
+      PGID: "1000"
+      TZ: Etc/UTC
+    ports:
+      http: "80:7878"
+    storage:
+      - "/var/lib/dokku/data/storage/radarr-%APP_NAME%-config:/config"
+      - "/var/lib/dokku/data/storage/radarr-%APP_NAME%-movies:/movies"
+      - "/var/lib/dokku/data/storage/radarr-%APP_NAME%-downloads:/downloads"
+    letsencrypt: true
+    healthchecks:
+      web:
+        - path: /
+          timeout: 60

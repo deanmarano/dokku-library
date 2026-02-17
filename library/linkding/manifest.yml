@@ -1,0 +1,30 @@
+library:
+  description: Self-hosted bookmark manager
+  url: https://github.com/sissbruecker/linkding
+  prompts:
+    - key: DOMAIN
+      question: Domain for Linkding
+      default: linkding.%HOSTNAME%
+
+services:
+  db:
+    type: postgres
+
+apps:
+  linkding:
+    image: sissbruecker/linkding:latest
+    domains: ["%DOMAIN%"]
+    links:
+      postgres: db
+    env:
+      LD_DB_ENGINE: postgres
+      LD_SERVER_PORT: "9090"
+      LD_SUPERUSER_NAME: admin
+      LD_SUPERUSER_PASSWORD: "%SECRET%"
+    ports:
+      http: "80:9090"
+    letsencrypt: true
+    healthchecks:
+      web:
+        - path: /health
+          timeout: 60

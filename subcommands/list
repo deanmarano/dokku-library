@@ -34,7 +34,7 @@ else
 
   for app_name in $(get_library_apps | sort); do
     manifest="$(load_manifest "$app_name")"
-    description="$(get_manifest_field "$manifest" '.description')"
+    description="$(get_manifest_field "$manifest" '.library.description')"
 
     if is_app_installed "$app_name"; then
       status="installed"

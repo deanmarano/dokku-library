@@ -56,8 +56,10 @@ if is_app_installed "$app_name"; then
 fi
 
 # Extract manifest fields
-image="$(get_manifest_field "$manifest" '.image')"
-description="$(get_manifest_field "$manifest" '.description')"
+description="$(get_manifest_field "$manifest" '.library.description')"
+# Get the app key name from the manifest (first key under apps:)
+manifest_app_name="$(get_manifest_field "$manifest" '.apps | keys | .[0]')"
+image="$(get_manifest_field "$manifest" ".apps.\"$manifest_app_name\".image")"
 
 echo "=====> Installing $app_name ($description)"
 echo "       Image: $image"
@@ -66,11 +68,11 @@ echo "       Image: $image"
 declare -A prompt_values
 
 # Process prompts from manifest
-prompt_count="$(get_manifest_field "$manifest" '.prompts | length')"
+prompt_count="$(get_manifest_field "$manifest" '.library.prompts | length')"
 for ((i = 0; i < prompt_count; i++)); do
-  key="$(get_manifest_field "$manifest" ".prompts[$i].key")"
-  question="$(get_manifest_field "$manifest" ".prompts[$i].question")"
-  default="$(get_manifest_field "$manifest" ".prompts[$i].default")"
+  key="$(get_manifest_field "$manifest" ".library.prompts[$i].key")"
+  question="$(get_manifest_field "$manifest" ".library.prompts[$i].question")"
+  default="$(get_manifest_field "$manifest" ".library.prompts[$i].default")"
 
   # Resolve default value
   default="$(resolve_domain "$app_name" "$default")"
@@ -90,323 +92,69 @@ done
 
 domain="${prompt_values[DOMAIN]:-$app_name.$(hostname -f 2>/dev/null || hostname)}"
 
-# Generate secrets for env var substitution
+# Generate secrets for template substitution
 secret="$(generate_secret 32)"
 secret_base64="$(generate_secret_base64 32)"
 
-# Create the dokku app
-echo "-----> Creating app $app_name"
-dokku_cmd apps:create "$app_name"
+# Generate resolved dokkufile YAML
+echo "-----> Generating dokkufile"
+resolved_yaml="$(resolve_dokkufile_yaml "$manifest" "$app_name" "$manifest_app_name" "$domain" "$secret" "$secret_base64" "$no_ssl")"
 
-# Scheduler settings (e.g. disable init process for s6-overlay images)
-# Note: use has() check since jq's // operator treats false as falsy
-init_process="$(get_manifest_field "$manifest" 'if .scheduler and (.scheduler | has("init_process")) then .scheduler.init_process | tostring else empty end')"
-if [[ "$init_process" == "false" ]]; then
-  echo "       Disabling init process (s6-overlay compatibility)"
-  dokku_cmd scheduler-docker-local:set "$app_name" init-process false
-fi
-
-# Set up plugins
-echo "-----> Configuring plugins"
-
-# Postgres
-postgres_required="$(get_manifest_field "$manifest" '.plugins.postgres.required // false')"
-postgres_default="$(get_manifest_field "$manifest" '.plugins.postgres.default // false')"
-if [[ "$postgres_required" == "true" || "$postgres_default" == "true" ]]; then
-  if check_plugin_available "postgres"; then
-    db_service="${app_name}-db"
-    echo "       Setting up PostgreSQL: $db_service"
-    dokku_cmd postgres:create "$db_service" || true
-    dokku_cmd postgres:link "$db_service" "$app_name" || true
-    set_app_state "$app_name" "plugins/postgres" "$db_service"
-
-    # If the manifest specifies a connection_env, copy DATABASE_URL to that env var
-    # (e.g. Grafana needs GF_DATABASE_URL instead of DATABASE_URL)
-    # If connection_env_scheme is "postgresql", normalize postgres:// to postgresql://
-    connection_env="$(get_manifest_field "$manifest" '.plugins.postgres.connection_env // empty')"
-    if [[ -n "$connection_env" ]]; then
-      db_url="$(dokku_cmd config:get "$app_name" "DATABASE_URL" 2>/dev/null || echo "")"
-      if [[ -n "$db_url" ]]; then
-        connection_env_scheme="$(get_manifest_field "$manifest" '.plugins.postgres.connection_env_scheme // empty')"
-        if [[ "$connection_env_scheme" == "postgresql" ]]; then
-          db_url="${db_url/postgres:\/\//postgresql:\/\/}"
-        fi
-        echo "       Setting $connection_env from DATABASE_URL"
-        dokku_cmd config:set --no-restart "$app_name" "$connection_env=$db_url"
-      fi
-    fi
-
-    # If the manifest specifies a connection_env_prefix, parse DATABASE_URL into
-    # individual env vars (e.g. PREFIX_HOST, PREFIX_USER, PREFIX_PASSWORD, etc.)
-    connection_env_prefix="$(get_manifest_field "$manifest" '.plugins.postgres.connection_env_prefix // empty')"
-    if [[ -n "$connection_env_prefix" ]]; then
-      db_url="$(dokku_cmd config:get "$app_name" "DATABASE_URL" 2>/dev/null || echo "")"
-      if [[ -n "$db_url" ]]; then
-        echo "       Setting ${connection_env_prefix}_* from DATABASE_URL"
-        db_env_vars="$(parse_database_url "$db_url" "$connection_env_prefix" "_" "upper")"
-        if [[ -n "$db_env_vars" ]]; then
-          # shellcheck disable=SC2086
-          dokku_cmd config:set --no-restart "$app_name" $db_env_vars
-        fi
-      fi
-    fi
-
-    # If the manifest specifies a connection_env_map, parse DATABASE_URL and set
-    # each component to the specified env var name. This handles apps with custom
-    # env var naming (e.g. Gitea uses GITEA__database__PASSWD not _PASSWORD)
-    connection_env_map="$(get_manifest_field "$manifest" '.plugins.postgres.connection_env_map // empty')"
-    if [[ -n "$connection_env_map" ]]; then
-      db_url="$(dokku_cmd config:get "$app_name" "DATABASE_URL" 2>/dev/null || echo "")"
-      if [[ -n "$db_url" && "$db_url" =~ ^[a-z]+://([^:]+):([^@]+)@([^:/]+):([0-9]+)/([^?]+) ]]; then
-        map_env_args=""
-        for component in host port user password name; do
-          env_var="$(echo "$connection_env_map" | jq -r ".$component // empty")"
-          if [[ -n "$env_var" ]]; then
-            case "$component" in
-              user) val="${BASH_REMATCH[1]}" ;;
-              password) val="${BASH_REMATCH[2]}" ;;
-              host) val="${BASH_REMATCH[3]}" ;;
-              port) val="${BASH_REMATCH[4]}" ;;
-              name) val="${BASH_REMATCH[5]}" ;;
-            esac
-            map_env_args="$map_env_args $env_var=$val"
-          fi
-        done
-        if [[ -n "$map_env_args" ]]; then
-          echo "       Setting database connection vars from DATABASE_URL"
-          # shellcheck disable=SC2086
-          dokku_cmd config:set --no-restart "$app_name" $map_env_args
-        fi
-      fi
-    fi
-  else
-    if [[ "$postgres_required" == "true" ]]; then
-      echo "!     PostgreSQL plugin required but not installed" >&2
-      dokku_cmd apps:destroy "$app_name" --force
-      exit 1
-    fi
-    echo "       PostgreSQL plugin not available, skipping"
-  fi
-fi
-
-# MariaDB
-mariadb_required="$(get_manifest_field "$manifest" '.plugins.mariadb.required // false')"
-mariadb_default="$(get_manifest_field "$manifest" '.plugins.mariadb.default // false')"
-if [[ "$mariadb_required" == "true" || "$mariadb_default" == "true" ]]; then
-  if check_plugin_available "mariadb"; then
-    db_service="${app_name}-db"
-    echo "       Setting up MariaDB: $db_service"
-    dokku_cmd mariadb:create "$db_service" || true
-    dokku_cmd mariadb:link "$db_service" "$app_name" || true
-    set_app_state "$app_name" "plugins/mariadb" "$db_service"
-
-    # If the manifest specifies a connection_env_prefix, parse DATABASE_URL into
-    # individual env vars (e.g. prefix__host, prefix__user, prefix__password, etc.)
-    # This is needed for mysql2 which cannot accept connection string URLs.
-    connection_env_prefix="$(get_manifest_field "$manifest" '.plugins.mariadb.connection_env_prefix // empty')"
-    if [[ -n "$connection_env_prefix" ]]; then
-      db_url="$(dokku_cmd config:get "$app_name" "DATABASE_URL" 2>/dev/null || echo "")"
-      if [[ -n "$db_url" ]]; then
-        echo "       Setting ${connection_env_prefix}__* from DATABASE_URL"
-        db_env_vars="$(parse_database_url "$db_url" "$connection_env_prefix")"
-        if [[ -n "$db_env_vars" ]]; then
-          # shellcheck disable=SC2086
-          dokku_cmd config:set --no-restart "$app_name" $db_env_vars
-        fi
-      fi
-    fi
-
-    # If the manifest specifies a connection_env_map, parse DATABASE_URL and set
-    # each component to the specified env var name
-    connection_env_map="$(get_manifest_field "$manifest" '.plugins.mariadb.connection_env_map // empty')"
-    if [[ -n "$connection_env_map" ]]; then
-      db_url="$(dokku_cmd config:get "$app_name" "DATABASE_URL" 2>/dev/null || echo "")"
-      if [[ -n "$db_url" && "$db_url" =~ ^[a-z]+://([^:]+):([^@]+)@([^:/]+):([0-9]+)/([^?]+) ]]; then
-        map_env_args=""
-        for component in host port user password name; do
-          env_var="$(echo "$connection_env_map" | jq -r ".$component // empty")"
-          if [[ -n "$env_var" ]]; then
-            case "$component" in
-              user) val="${BASH_REMATCH[1]}" ;;
-              password) val="${BASH_REMATCH[2]}" ;;
-              host) val="${BASH_REMATCH[3]}" ;;
-              port) val="${BASH_REMATCH[4]}" ;;
-              name) val="${BASH_REMATCH[5]}" ;;
-            esac
-            map_env_args="$map_env_args $env_var=$val"
-          fi
-        done
-        if [[ -n "$map_env_args" ]]; then
-          echo "       Setting database connection vars from DATABASE_URL"
-          # shellcheck disable=SC2086
-          dokku_cmd config:set --no-restart "$app_name" $map_env_args
-        fi
-      fi
-    fi
-  else
-    if [[ "$mariadb_required" == "true" ]]; then
-      echo "!     MariaDB plugin required but not installed" >&2
-      dokku_cmd apps:destroy "$app_name" --force
-      exit 1
-    fi
-    echo "       MariaDB plugin not available, skipping"
-  fi
-fi
-
-# Redis
-redis_required="$(get_manifest_field "$manifest" '.plugins.redis.required // false')"
-redis_default="$(get_manifest_field "$manifest" '.plugins.redis.default // false')"
-if [[ "$redis_required" == "true" || "$redis_default" == "true" ]]; then
-  if check_plugin_available "redis"; then
-    redis_service="${app_name}-redis"
-    echo "       Setting up Redis: $redis_service"
-    dokku_cmd redis:create "$redis_service" || true
-    dokku_cmd redis:link "$redis_service" "$app_name" || true
-    set_app_state "$app_name" "plugins/redis" "$redis_service"
-
-    # If the manifest specifies a connection_env, copy REDIS_URL to that env var
-    redis_connection_env="$(get_manifest_field "$manifest" '.plugins.redis.connection_env // empty')"
-    if [[ -n "$redis_connection_env" ]]; then
-      redis_url="$(dokku_cmd config:get "$app_name" "REDIS_URL" 2>/dev/null || echo "")"
-      if [[ -n "$redis_url" ]]; then
-        echo "       Setting $redis_connection_env from REDIS_URL"
-        dokku_cmd config:set --no-restart "$app_name" "$redis_connection_env=$redis_url"
-      fi
-    fi
-  else
-    if [[ "$redis_required" == "true" ]]; then
-      echo "!     Redis plugin required but not installed" >&2
-      dokku_cmd apps:destroy "$app_name" --force
-      exit 1
-    fi
-    echo "       Redis plugin not available, skipping"
-  fi
-fi
-
-# Set environment variables
-echo "-----> Setting environment variables"
-env_keys="$(get_manifest_field "$manifest" '.env | keys[]' 2>/dev/null || true)"
-env_args=""
-if [[ -n "$env_keys" ]]; then
-  while IFS= read -r key; do
-    value="$(get_manifest_field "$manifest" ".env[\"$key\"]")"
-    value="$(resolve_env_value "$value" "$domain" "$app_name" "$secret" "$secret_base64")"
-    env_args="$env_args $key=$value"
-    set_app_state "$app_name" "env/$key" "$value"
-  done <<<"$env_keys"
-
-  if [[ -n "$env_args" ]]; then
-    # shellcheck disable=SC2086
-    dokku_cmd config:set --no-restart "$app_name" $env_args
-  fi
-fi
-
-# Set domain
-echo "-----> Setting domain: $domain"
-dokku_cmd domains:set "$app_name" "$domain"
-
-# Set up storage mounts
-storage_count="$(get_manifest_field "$manifest" '.storage | length' 2>/dev/null || echo 0)"
+# Create storage directories before dokkufile apply
+storage_count="$(echo "$resolved_yaml" | yq eval ".apps.\"$app_name\".storage | length" - 2>/dev/null || echo 0)"
 if [[ "$storage_count" -gt 0 ]]; then
-  echo "-----> Setting up storage mounts"
+  echo "-----> Creating storage directories"
   for ((i = 0; i < storage_count; i++)); do
-    mount="$(get_manifest_field "$manifest" ".storage[$i]")"
+    mount="$(echo "$resolved_yaml" | yq eval ".apps.\"$app_name\".storage[$i]" -)"
     host_path="$(echo "$mount" | cut -d: -f1)"
-    host_path="${host_path//%APP_NAME%/$app_name}"
-    container_path="$(echo "$mount" | cut -d: -f2)"
     mkdir -p "$host_path"
-    dokku_cmd storage:mount "$app_name" "${host_path}:${container_path}"
   done
 fi
 
-# Set docker options
-for phase in deploy run; do
-  options="$(get_manifest_field "$manifest" ".docker_options.$phase // empty")"
-  if [[ -n "$options" ]]; then
-    echo "-----> Setting docker options for $phase"
-    dokku_cmd docker-options:add "$app_name" "$phase" "$options"
-  fi
-done
+# Write resolved YAML to temp file
+tmpfile="$(mktemp /tmp/dokkufile-XXXXXX.yml)"
+echo "$resolved_yaml" >"$tmpfile"
 
-# Set proxy ports before deploy so the initial deployment uses the correct port mapping
-proxy_ports="$(get_manifest_field "$manifest" '.proxy.ports // empty')"
-if [[ -n "$proxy_ports" ]]; then
-  echo "-----> Setting proxy ports: $proxy_ports"
-  dokku_cmd ports:set "$app_name" "$proxy_ports"
-fi
+# Run dokkufile apply
+echo "-----> Applying dokkufile"
+dokku_cmd dokkufile:apply -f "$tmpfile"
 
-# Build custom image if Dockerfile exists (e.g. to add database drivers)
-dockerfile_path="$PLUGIN_BASE_PATH/library/$library_app/Dockerfile"
-if [[ -f "$dockerfile_path" ]]; then
-  custom_tag="dokku-library/${library_app}:latest"
-  echo "-----> Building custom image $custom_tag"
-  docker build -t "$custom_tag" "$(dirname "$dockerfile_path")"
-  image="$custom_tag"
-fi
+# Clean up temp file
+rm -f "$tmpfile"
 
-# Deploy from image
-echo "-----> Deploying $app_name from image $image"
-dokku_cmd git:from-image "$app_name" "$image"
+# Post-processing: connection_env
+echo "-----> Post-processing"
+post_process_connection_env "$app_name" "$manifest"
 
-# Run post-deploy commands
-post_deploy_count="$(get_manifest_field "$manifest" '.setup.post_deploy | length' 2>/dev/null || echo 0)"
-if [[ "$post_deploy_count" -gt 0 ]]; then
-  echo "-----> Running post-deploy commands"
-  for ((i = 0; i < post_deploy_count; i++)); do
-    cmd="$(get_manifest_field "$manifest" ".setup.post_deploy[$i]")"
-    echo "       Running: $cmd"
-    # shellcheck disable=SC2086
-    dokku_cmd run "$app_name" $cmd
-  done
-fi
-
-# Letsencrypt (must be after deploy)
-le_default="$(get_manifest_field "$manifest" '.plugins.letsencrypt.default // false')"
-if [[ "$le_default" == "true" && "$no_ssl" != "true" ]]; then
-  if check_plugin_available "letsencrypt"; then
-    echo "-----> Enabling Let's Encrypt SSL"
-    dokku_cmd letsencrypt:enable "$app_name" || echo "       Warning: letsencrypt setup failed, continuing without SSL"
-    set_app_state "$app_name" "plugins/letsencrypt" "enabled"
-  else
-    echo "       Let's Encrypt plugin not available, skipping SSL"
-  fi
-fi
-
-# Mail
-mail_default="$(get_manifest_field "$manifest" '.plugins["dokku-mail"].default // false')"
-if [[ "$mail_default" == "true" && "$no_mail" != "true" ]]; then
+# Post-processing: mail
+mail_service_name=""
+# Check if manifest has services that use mail (library-level concept)
+if [[ "$no_mail" != "true" ]]; then
   if check_plugin_available "dokku-mail"; then
-    mail_service="${app_name}-mail"
-    echo "-----> Setting up mail: $mail_service"
-    dokku_cmd mail:create "$mail_service" || true
-    dokku_cmd mail:link "$mail_service" "$app_name" || true
-    set_app_state "$app_name" "plugins/dokku-mail" "$mail_service"
-  else
-    echo "       Mail plugin not available, skipping"
+    mail_service_name="${app_name}-mail"
+    echo "       Setting up mail: $mail_service_name"
+    dokku_cmd mail:create "$mail_service_name" || true
+    dokku_cmd mail:link "$mail_service_name" "$app_name" || true
+    set_app_state "$app_name" "plugins/dokku-mail" "$mail_service_name"
   fi
 fi
 
-# Auth (dokku-auth: LDAP directory link + Authelia forward auth)
-auth_default="$(get_manifest_field "$manifest" '.plugins["dokku-auth"].default // false')"
-if [[ "$auth_default" == "true" && "$no_auth" != "true" ]]; then
+# Post-processing: auth
+if [[ "$no_auth" != "true" ]]; then
   if check_plugin_available "dokku-auth"; then
-    # Determine which auth service to use
     AUTH_SERVICE="${auth_service:-}"
     if [[ -z "$AUTH_SERVICE" ]]; then
-      # Look for a default auth directory service
       AUTH_SERVICE="$(dokku_cmd auth:list 2>/dev/null | head -1 || true)"
     fi
     if [[ -n "$AUTH_SERVICE" ]]; then
-      echo "-----> Linking auth service: $AUTH_SERVICE"
+      echo "       Linking auth service: $AUTH_SERVICE"
       dokku_cmd auth:link "$AUTH_SERVICE" "$app_name" || true
-      echo "-----> Protecting app with Authelia forward auth"
+      echo "       Protecting app with Authelia forward auth"
       dokku_cmd auth:protect "$app_name" || true
       set_app_state "$app_name" "plugins/dokku-auth" "$AUTH_SERVICE"
     else
       echo "       No auth service found, skipping auth setup"
     fi
-  else
-    echo "       Auth plugin not available, skipping"
   fi
 fi
 
@@ -416,6 +164,16 @@ set_app_state "$app_name" "MANIFEST_NAME" "$library_app"
 set_app_state "$app_name" "DOMAIN" "$domain"
 set_app_state "$app_name" "IMAGE" "$image"
 set_app_state "$app_name" "CHECKED_OUT_AT" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+set_app_state "$app_name" "DOKKUFILE" "$resolved_yaml"
+
+# Save plugin state for services (used by cleanup)
+service_names="$(echo "$resolved_yaml" | yq eval '.services | keys | .[]' - 2>/dev/null || true)"
+if [[ -n "$service_names" ]]; then
+  while IFS= read -r svc_name; do
+    svc_type="$(echo "$resolved_yaml" | yq eval ".services.\"$svc_name\".type" -)"
+    set_app_state "$app_name" "plugins/$svc_type" "$svc_name"
+  done <<<"$service_names"
+fi
 
 # Save prompt values
 for key in "${!prompt_values[@]}"; do

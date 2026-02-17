@@ -13,6 +13,15 @@ export default function globalSetup() {
 
   console.log("  [OK] dokku-library plugin installed");
 
+  if (!pluginAvailable("dokkufile")) {
+    throw new Error(
+      "dokkufile plugin is not installed. Install it first:\n" +
+        "  sudo dokku plugin:install https://github.com/deanmarano/dokkufile.git dokkufile"
+    );
+  }
+
+  console.log("  [OK] dokkufile plugin installed");
+
   if (pluginAvailable("postgres")) {
     console.log("  [OK] postgres plugin available");
   } else {

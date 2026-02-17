@@ -1,0 +1,47 @@
+library:
+  description: Document management system with OCR
+  url: https://docs.paperless-ngx.com
+  prompts:
+    - key: DOMAIN
+      question: Domain for Paperless-ngx
+      default: paperless.%HOSTNAME%
+  connection_env:
+    service: redis
+    type: redis
+    mode: env
+    env_var: PAPERLESS_REDIS
+
+services:
+  db:
+    type: postgres
+  redis:
+    type: redis
+
+apps:
+  paperless-ngx:
+    image: ghcr.io/paperless-ngx/paperless-ngx:latest
+    domains: ["%DOMAIN%"]
+    links:
+      postgres: db
+      redis: redis
+    env:
+      PAPERLESS_URL: "http://%DOMAIN%"
+      PAPERLESS_SECRET_KEY: "%SECRET%"
+      PAPERLESS_ADMIN_USER: admin
+      PAPERLESS_ADMIN_PASSWORD: "%SECRET%"
+      PAPERLESS_OCR_LANGUAGE: eng
+      PAPERLESS_TIME_ZONE: Etc/UTC
+    ports:
+      http: "80:8000"
+    storage:
+      - "/var/lib/dokku/data/storage/paperless-%APP_NAME%-data:/usr/src/paperless/data"
+      - "/var/lib/dokku/data/storage/paperless-%APP_NAME%-media:/usr/src/paperless/media"
+      - "/var/lib/dokku/data/storage/paperless-%APP_NAME%-consume:/usr/src/paperless/consume"
+      - "/var/lib/dokku/data/storage/paperless-%APP_NAME%-export:/usr/src/paperless/export"
+    scheduler:
+      docker_local_init_process: "false"
+    letsencrypt: true
+    healthchecks:
+      web:
+        - path: /
+          timeout: 120

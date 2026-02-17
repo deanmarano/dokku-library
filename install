@@ -5,3 +5,21 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/config"
 echo "-----> Creating library data directory"
 mkdir -p "$PLUGIN_DATA_ROOT/apps"
 chown -R "${DOKKU_SYSTEM_USER:-dokku}:${DOKKU_SYSTEM_GROUP:-dokku}" "$PLUGIN_DATA_ROOT"
+
+# Check for yq (required for YAML manifest processing)
+if ! command -v yq &>/dev/null; then
+  echo "-----> Installing yq v4"
+  YQ_VERSION="v4.44.1"
+  YQ_BINARY="yq_linux_amd64"
+  wget -qO /usr/local/bin/yq "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/${YQ_BINARY}" || {
+    echo "!     Failed to install yq. Please install yq v4+ manually." >&2
+    exit 1
+  }
+  chmod +x /usr/local/bin/yq
+fi
+
+# Check for dokkufile plugin
+if [[ ! -d "/var/lib/dokku/plugins/available/dokkufile" ]]; then
+  echo "!     Warning: dokkufile plugin not found. Install it for library:checkout to work." >&2
+  echo "       See: https://github.com/deanmarano/dokkufile" >&2
+fi

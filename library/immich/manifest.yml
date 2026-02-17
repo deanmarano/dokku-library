@@ -1,0 +1,32 @@
+library:
+  description: Self-hosted photo and video management
+  url: https://immich.app
+  prompts:
+    - key: DOMAIN
+      question: Domain for Immich
+      default: immich.%HOSTNAME%
+
+services:
+  db:
+    type: postgres
+
+apps:
+  immich:
+    image: ghcr.io/immich-app/immich-server:release
+    domains: ["%DOMAIN%"]
+    links:
+      postgres: db
+    env:
+      IMMICH_SERVER_URL: "https://%DOMAIN%"
+      UPLOAD_LOCATION: /upload
+      DB_HOSTNAME: ""
+      REDIS_HOSTNAME: localhost
+    ports:
+      http: "80:2283"
+    storage:
+      - "/var/lib/dokku/data/storage/immich-%APP_NAME%-upload:/upload"
+    letsencrypt: true
+    healthchecks:
+      web:
+        - path: /api/server/ping
+          timeout: 90

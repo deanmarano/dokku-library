@@ -1,0 +1,44 @@
+library:
+  description: Lightweight self-hosted Git service
+  url: https://gitea.io
+  prompts:
+    - key: DOMAIN
+      question: Domain for Gitea
+      default: gitea.%HOSTNAME%
+  connection_env:
+    service: db
+    type: postgres
+    mode: map
+    map:
+      host: GITEA__database__HOST
+      port: GITEA__database__PORT
+      user: GITEA__database__USER
+      password: GITEA__database__PASSWD
+      name: GITEA__database__NAME
+
+services:
+  db:
+    type: postgres
+
+apps:
+  gitea:
+    image: gitea/gitea:latest
+    domains: ["%DOMAIN%"]
+    links:
+      postgres: db
+    env:
+      GITEA__database__DB_TYPE: postgres
+      GITEA__server__DOMAIN: "%DOMAIN%"
+      GITEA__server__ROOT_URL: "http://%DOMAIN%/"
+      GITEA__server__SSH_DOMAIN: "%DOMAIN%"
+      GITEA__security__SECRET_KEY: "%SECRET%"
+      GITEA__security__INTERNAL_TOKEN: "%SECRET%"
+    ports:
+      http: "80:3000"
+    storage:
+      - "/var/lib/dokku/data/storage/gitea-%APP_NAME%:/data"
+    letsencrypt: true
+    healthchecks:
+      web:
+        - path: /
+          timeout: 60

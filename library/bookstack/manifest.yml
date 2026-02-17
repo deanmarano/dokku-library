@@ -1,0 +1,46 @@
+library:
+  description: Simple and free wiki software
+  url: https://www.bookstackapp.com
+  prompts:
+    - key: DOMAIN
+      question: Domain for BookStack
+      default: bookstack.%HOSTNAME%
+  connection_env:
+    service: db
+    type: mariadb
+    mode: map
+    map:
+      host: DB_HOST
+      port: DB_PORT
+      user: DB_USER
+      password: DB_PASS
+      name: DB_DATABASE
+
+services:
+  db:
+    type: mariadb
+
+apps:
+  bookstack:
+    image: "lscr.io/linuxserver/bookstack:latest"
+    domains: ["%DOMAIN%"]
+    links:
+      mariadb: db
+    env:
+      APP_KEY: "base64:%SECRET_BASE64_32%"
+      APP_URL: "http://%DOMAIN%"
+      DB_CONNECTION: mysql
+      PUID: "1000"
+      PGID: "1000"
+      TZ: Etc/UTC
+    ports:
+      http: "80:80"
+    storage:
+      - "/var/lib/dokku/data/storage/bookstack-%APP_NAME%:/config"
+    scheduler:
+      docker_local_init_process: "false"
+    letsencrypt: true
+    healthchecks:
+      web:
+        - path: /login
+          timeout: 90

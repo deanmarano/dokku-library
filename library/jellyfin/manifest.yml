@@ -1,0 +1,23 @@
+library:
+  description: Free software media system
+  url: https://jellyfin.org
+  prompts:
+    - key: DOMAIN
+      question: Domain for Jellyfin
+      default: jellyfin.%HOSTNAME%
+
+apps:
+  jellyfin:
+    image: jellyfin/jellyfin:latest
+    domains: ["%DOMAIN%"]
+    ports:
+      http: "80:8096"
+    storage:
+      - "/var/lib/dokku/data/storage/jellyfin-%APP_NAME%-config:/config"
+      - "/var/lib/dokku/data/storage/jellyfin-%APP_NAME%-cache:/cache"
+      - "/var/lib/dokku/data/storage/jellyfin-%APP_NAME%-media:/media"
+    letsencrypt: true
+    healthchecks:
+      web:
+        - path: /health
+          timeout: 60

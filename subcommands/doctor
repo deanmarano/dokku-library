@@ -18,8 +18,6 @@ if ! is_app_installed "$app_name"; then
   exit 1
 fi
 
-manifest_name="$(get_app_state "$app_name" "MANIFEST_NAME")"
-manifest="$(load_manifest "$manifest_name")"
 has_issues=false
 
 echo "-----> Checking $app_name"
@@ -32,14 +30,24 @@ else
   has_issues=true
 fi
 
-# Check image
-expected_image="$(get_app_state "$app_name" "IMAGE")"
-actual_image="$(dokku_cmd git:report "$app_name" --git-source-image 2>/dev/null || echo "")"
-if [[ "$actual_image" == *"$expected_image"* || -z "$actual_image" ]]; then
-  echo "       [OK] Image: $expected_image"
-else
-  echo "       [DRIFT] Image: expected $expected_image, actual $actual_image"
-  has_issues=true
+# Use dokkufile plan to detect drift if saved dokkufile exists
+saved_yaml="$(get_app_state "$app_name" "DOKKUFILE")"
+if [[ -n "$saved_yaml" ]] && check_plugin_available "dokkufile"; then
+  tmpfile="$(mktemp /tmp/dokkufile-XXXXXX.yml)"
+  echo "$saved_yaml" >"$tmpfile"
+
+  echo "-----> Running dokkufile plan"
+  plan_output="$(dokku_cmd dokkufile:plan -f "$tmpfile" 2>&1 || true)"
+  rm -f "$tmpfile"
+
+  if echo "$plan_output" | grep -q "No changes"; then
+    echo "       [OK] Dokkufile state matches"
+  else
+    echo "       [DRIFT] Dokkufile plan detected changes:"
+    # shellcheck disable=SC2001
+    echo "$plan_output" | sed 's/^/         /'
+    has_issues=true
+  fi
 fi
 
 # Check domain
@@ -50,75 +58,6 @@ if echo "$actual_domains" | grep -q "$expected_domain"; then
 else
   echo "       [DRIFT] Domain: expected $expected_domain, actual $actual_domains"
   has_issues=true
-fi
-
-# Check proxy ports
-expected_ports="$(get_manifest_field "$manifest" '.proxy.ports // empty')"
-if [[ -n "$expected_ports" ]]; then
-  actual_ports="$(dokku_cmd ports:report "$app_name" --ports-map 2>/dev/null || echo "")"
-  if echo "$actual_ports" | grep -q "$(echo "$expected_ports" | tr ' ' '\n' | head -1)"; then
-    echo "       [OK] Proxy ports configured"
-  else
-    echo "       [DRIFT] Proxy ports: expected $expected_ports, actual $actual_ports"
-    has_issues=true
-  fi
-fi
-
-# Check environment variables
-env_keys="$(get_manifest_field "$manifest" '.env | keys[]' 2>/dev/null || true)"
-if [[ -n "$env_keys" ]]; then
-  while IFS= read -r key; do
-    expected_value="$(get_app_state "$app_name" "env/$key")"
-    actual_value="$(dokku_cmd config:get "$app_name" "$key" 2>/dev/null || echo "")"
-
-    if [[ -z "$expected_value" ]]; then
-      continue
-    fi
-
-    if [[ "$actual_value" == "$expected_value" ]]; then
-      echo "       [OK] Env: $key"
-    elif [[ -z "$actual_value" ]]; then
-      echo "       [MISSING] Env: $key not set"
-      has_issues=true
-    else
-      echo "       [DRIFT] Env: $key expected '$expected_value', actual '$actual_value'"
-      has_issues=true
-    fi
-  done <<<"$env_keys"
-fi
-
-# Check postgres
-if [[ -f "$PLUGIN_DATA_ROOT/apps/$app_name/plugins/postgres" ]]; then
-  db_service="$(cat "$PLUGIN_DATA_ROOT/apps/$app_name/plugins/postgres")"
-  if dokku_cmd postgres:exists "$db_service" 2>/dev/null; then
-    linked="$(dokku_cmd postgres:linked "$db_service" "$app_name" 2>/dev/null && echo "yes" || echo "no")"
-    if [[ "$linked" == "yes" ]]; then
-      echo "       [OK] Postgres linked: $db_service"
-    else
-      echo "       [DRIFT] Postgres exists but not linked: $db_service"
-      has_issues=true
-    fi
-  else
-    echo "       [MISSING] Postgres service: $db_service"
-    has_issues=true
-  fi
-fi
-
-# Check mariadb
-if [[ -f "$PLUGIN_DATA_ROOT/apps/$app_name/plugins/mariadb" ]]; then
-  db_service="$(cat "$PLUGIN_DATA_ROOT/apps/$app_name/plugins/mariadb")"
-  if dokku_cmd mariadb:exists "$db_service" 2>/dev/null; then
-    linked="$(dokku_cmd mariadb:linked "$db_service" "$app_name" 2>/dev/null && echo "yes" || echo "no")"
-    if [[ "$linked" == "yes" ]]; then
-      echo "       [OK] MariaDB linked: $db_service"
-    else
-      echo "       [DRIFT] MariaDB exists but not linked: $db_service"
-      has_issues=true
-    fi
-  else
-    echo "       [MISSING] MariaDB service: $db_service"
-    has_issues=true
-  fi
 fi
 
 # Check letsencrypt

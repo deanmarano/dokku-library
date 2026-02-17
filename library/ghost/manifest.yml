@@ -1,0 +1,36 @@
+library:
+  description: Professional publishing platform
+  url: https://ghost.org
+  prompts:
+    - key: DOMAIN
+      question: Domain for Ghost
+      default: ghost.%HOSTNAME%
+  connection_env:
+    service: db
+    type: mariadb
+    mode: prefix
+    prefix: "database__connection"
+    separator: "__"
+    case: lower
+
+services:
+  db:
+    type: mariadb
+
+apps:
+  ghost:
+    image: ghost:5-alpine
+    domains: ["%DOMAIN%"]
+    links:
+      mariadb: db
+    env:
+      NODE_ENV: production
+      url: "http://%DOMAIN%"
+      database__client: mysql
+    ports:
+      http: "80:2368"
+    letsencrypt: true
+    healthchecks:
+      web:
+        - path: /
+          timeout: 60

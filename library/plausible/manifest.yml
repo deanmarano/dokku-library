@@ -1,0 +1,30 @@
+library:
+  description: Privacy-friendly web analytics
+  url: https://plausible.io
+  prompts:
+    - key: DOMAIN
+      question: Domain for Plausible
+      default: plausible.%HOSTNAME%
+
+services:
+  db:
+    type: postgres
+
+apps:
+  plausible:
+    image: "ghcr.io/plausible/community-edition:v2"
+    domains: ["%DOMAIN%"]
+    links:
+      postgres: db
+    env:
+      BASE_URL: "http://%DOMAIN%"
+      SECRET_KEY_BASE: "%SECRET%"
+      TOTP_VAULT_KEY: "%SECRET_BASE64_32%"
+      DISABLE_REGISTRATION: invite_only
+    ports:
+      http: "80:8000"
+    letsencrypt: true
+    healthchecks:
+      web:
+        - path: /
+          timeout: 90

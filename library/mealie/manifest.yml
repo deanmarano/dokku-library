@@ -1,0 +1,40 @@
+library:
+  description: Self-hosted recipe manager and meal planner
+  url: https://mealie.io
+  prompts:
+    - key: DOMAIN
+      question: Domain for Mealie
+      default: mealie.%HOSTNAME%
+  connection_env:
+    service: db
+    type: postgres
+    mode: env
+    env_var: POSTGRES_URL_OVERRIDE
+    scheme: postgresql
+
+services:
+  db:
+    type: postgres
+
+apps:
+  mealie:
+    image: ghcr.io/mealie-recipes/mealie:latest
+    domains: ["%DOMAIN%"]
+    links:
+      postgres: db
+    env:
+      BASE_URL: "http://%DOMAIN%"
+      DB_ENGINE: postgres
+      ALLOW_SIGNUP: "false"
+      TZ: Etc/UTC
+      MAX_WORKERS: "1"
+      WEB_CONCURRENCY: "1"
+    ports:
+      http: "80:9000"
+    storage:
+      - "/var/lib/dokku/data/storage/mealie-%APP_NAME%:/app/data"
+    letsencrypt: true
+    healthchecks:
+      web:
+        - path: /api/app/about
+          timeout: 60

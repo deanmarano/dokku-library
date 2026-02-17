@@ -1,0 +1,34 @@
+library:
+  description: Open-source monitoring and observability platform
+  url: https://grafana.com
+  prompts:
+    - key: DOMAIN
+      question: Domain for Grafana
+      default: grafana.%HOSTNAME%
+  connection_env:
+    service: db
+    type: postgres
+    mode: env
+    env_var: GF_DATABASE_URL
+
+services:
+  db:
+    type: postgres
+
+apps:
+  grafana:
+    image: grafana/grafana:latest
+    domains: ["%DOMAIN%"]
+    links:
+      postgres: db
+    env:
+      GF_SERVER_ROOT_URL: "http://%DOMAIN%"
+      GF_DATABASE_TYPE: postgres
+      GF_SECURITY_ADMIN_PASSWORD: "%SECRET%"
+    ports:
+      http: "80:3000"
+    letsencrypt: true
+    healthchecks:
+      web:
+        - path: /api/health
+          timeout: 60

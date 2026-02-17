@@ -14,29 +14,26 @@ if [[ -z "$app_name" ]]; then
 fi
 
 # Check library first
-manifest_path="$PLUGIN_BASE_PATH/library/$app_name/manifest.json"
+manifest_path="$PLUGIN_BASE_PATH/library/$app_name/manifest.yml"
 if [[ -f "$manifest_path" ]]; then
   manifest="$(load_manifest "$app_name")"
-  description="$(get_manifest_field "$manifest" '.description')"
-  image="$(get_manifest_field "$manifest" '.image')"
-  url="$(get_manifest_field "$manifest" '.url // "N/A"')"
+  description="$(get_manifest_field "$manifest" '.library.description')"
+  image="$(get_manifest_field "$manifest" '.apps | to_entries | .[0].value.image')"
+  url="$(get_manifest_field "$manifest" '.library.url // "N/A"')"
 
   echo "=====> Library App: $app_name"
   echo "       Description:  $description"
   echo "       Image:        $image"
   echo "       Website:      $url"
 
-  # Show required plugins
-  echo "       Plugins:"
-  for plugin in postgres mariadb letsencrypt dokku-mail dokku-auth; do
-    required="$(get_manifest_field "$manifest" ".plugins[\"$plugin\"].required // false")"
-    default="$(get_manifest_field "$manifest" ".plugins[\"$plugin\"].default // false")"
-    if [[ "$required" == "true" ]]; then
-      echo "         $plugin (required)"
-    elif [[ "$default" == "true" ]]; then
-      echo "         $plugin (optional, enabled by default)"
-    fi
-  done
+  # Show services
+  service_types="$(get_manifest_field "$manifest" '.services | to_entries | .[] | .value.type' 2>/dev/null || true)"
+  if [[ -n "$service_types" ]]; then
+    echo "       Services:"
+    while IFS= read -r svc_type; do
+      echo "         $svc_type (required)"
+    done <<<"$service_types"
+  fi
 fi
 
 # Show installed state if applicable

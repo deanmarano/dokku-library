@@ -22,18 +22,37 @@ manifest_name="$(get_app_state "$app_name" "MANIFEST_NAME")"
 manifest="$(load_manifest "$manifest_name")"
 
 current_image="$(get_app_state "$app_name" "IMAGE")"
-latest_image="$(get_manifest_field "$manifest" '.image')"
+manifest_app_name="$(get_manifest_field "$manifest" '.apps | keys | .[0]')"
+latest_image="$(get_manifest_field "$manifest" ".apps.\"$manifest_app_name\".image")"
 
 echo "-----> Updating $app_name"
 echo "       Current image: $current_image"
 echo "       Latest image:  $latest_image"
 
-if [[ "$current_image" == "$latest_image" ]]; then
-  echo "       Already on latest image, pulling fresh..."
-fi
+# Update the saved dokkufile YAML with the new image and re-apply
+saved_yaml="$(get_app_state "$app_name" "DOKKUFILE")"
+if [[ -n "$saved_yaml" ]]; then
+  # Update image in saved dokkufile
+  updated_yaml="$(echo "$saved_yaml" | yq eval ".apps.\"$app_name\".image = \"$latest_image\"" -)"
 
-echo "-----> Deploying $app_name from image $latest_image"
-dokku_cmd git:from-image "$app_name" "$latest_image"
+  # Write to temp file and apply
+  tmpfile="$(mktemp /tmp/dokkufile-XXXXXX.yml)"
+  echo "$updated_yaml" >"$tmpfile"
+
+  echo "-----> Applying updated dokkufile"
+  dokku_cmd dokkufile:apply -f "$tmpfile"
+  rm -f "$tmpfile"
+
+  # Update saved state
+  set_app_state "$app_name" "DOKKUFILE" "$updated_yaml"
+else
+  # Fallback for apps installed before dokkufile migration
+  if [[ "$current_image" == "$latest_image" ]]; then
+    echo "       Already on latest image, pulling fresh..."
+  fi
+  echo "-----> Deploying $app_name from image $latest_image"
+  dokku_cmd git:from-image "$app_name" "$latest_image"
+fi
 
 # Update state
 set_app_state "$app_name" "IMAGE" "$latest_image"

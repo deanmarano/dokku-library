@@ -16,27 +16,26 @@ library_help_cmd() {
 EOF
 }
 
+# Load a YAML manifest for a library app.
+# Outputs the raw YAML content for downstream yq processing.
 load_manifest() {
   local app_name="$1"
-  local manifest_path="$PLUGIN_BASE_PATH/library/$app_name/manifest.json"
+  local manifest_path="$PLUGIN_BASE_PATH/library/$app_name/manifest.yml"
 
   if [[ ! -f "$manifest_path" ]]; then
     echo "!     App '$app_name' not found in library" >&2
     return 1
   fi
 
-  if ! jq empty "$manifest_path" 2>/dev/null; then
-    echo "!     Invalid manifest for '$app_name'" >&2
-    return 1
-  fi
-
   cat "$manifest_path"
 }
 
+# Extract a field from a YAML manifest using yq.
+# Usage: get_manifest_field "$manifest_yaml" '.library.description'
 get_manifest_field() {
   local manifest="$1"
   local field="$2"
-  echo "$manifest" | jq -r "$field"
+  echo "$manifest" | yq eval "$field" -
 }
 
 get_installed_apps() {
@@ -83,21 +82,6 @@ resolve_domain() {
   echo "$domain"
 }
 
-resolve_env_value() {
-  local value="$1"
-  local domain="$2"
-  local app_name="$3"
-  local secret="$4"
-  local secret_base64="${5:-}"
-
-  value="${value//%DOMAIN%/$domain}"
-  value="${value//%APP_NAME%/$app_name}"
-  value="${value//%SECRET%/$secret}"
-  value="${value//%SECRET_BASE64_32%/$secret_base64}"
-
-  echo "$value"
-}
-
 check_plugin_available() {
   local plugin_name="$1"
 
@@ -137,6 +121,34 @@ parse_database_url() {
   fi
 }
 
+# Parse a database URL and set env vars according to a connection_env_map.
+# Usage: parse_database_url_map "$url" "$map_yaml"
+# where map_yaml is YAML like: "host: DB_HOST\nport: DB_PORT\n..."
+parse_database_url_map() {
+  local url="$1"
+  local map_yaml="$2"
+
+  if [[ "$url" =~ ^[a-z]+://([^:]+):([^@]+)@([^:/]+):([0-9]+)/([^?]+) ]]; then
+    local map_env_args=""
+    local env_var
+    for component in host port user password name; do
+      env_var="$(echo "$map_yaml" | yq eval ".$component // \"\"" -)"
+      if [[ -n "$env_var" ]]; then
+        local val
+        case "$component" in
+          user) val="${BASH_REMATCH[1]}" ;;
+          password) val="${BASH_REMATCH[2]}" ;;
+          host) val="${BASH_REMATCH[3]}" ;;
+          port) val="${BASH_REMATCH[4]}" ;;
+          name) val="${BASH_REMATCH[5]}" ;;
+        esac
+        map_env_args="$map_env_args $env_var=$val"
+      fi
+    done
+    echo "$map_env_args"
+  fi
+}
+
 # Run a dokku command, tolerating exit code 127 from plugin hook dispatch.
 # dokku's plugn trigger mechanism can produce spurious exit 127 errors
 # when invoked from non-shell contexts (e.g., Node.js child_process).
@@ -153,9 +165,136 @@ get_library_apps() {
   local library_dir="$PLUGIN_BASE_PATH/library"
   if [[ -d "$library_dir" ]]; then
     for dir in "$library_dir"/*/; do
-      if [[ -f "${dir}manifest.json" ]]; then
+      if [[ -f "${dir}manifest.yml" ]]; then
         basename "$dir"
       fi
     done
   fi
+}
+
+# Generate a resolved dokkufile YAML from a library manifest.
+# This strips the library: section, adds version, renames app/service keys,
+# and resolves template variables.
+resolve_dokkufile_yaml() {
+  local manifest="$1"
+  local app_name="$2"
+  local manifest_app_name="$3"
+  local domain="$4"
+  local secret="$5"
+  local secret_base64="$6"
+  local no_ssl="$7"
+
+  local resolved
+  # Start with the manifest, strip the library section, add version
+  resolved="$(echo "$manifest" | yq eval 'del(.library)' - | yq eval '. + {"version": "1"}' -)"
+
+  # Rename app key from manifest name to actual app name
+  if [[ "$app_name" != "$manifest_app_name" ]]; then
+    resolved="$(echo "$resolved" | yq eval ".apps.\"$app_name\" = .apps.\"$manifest_app_name\" | del(.apps.\"$manifest_app_name\")" -)"
+  fi
+
+  # Rename service keys to include app name prefix
+  local service_names
+  service_names="$(echo "$resolved" | yq eval '.services | keys | .[]' - 2>/dev/null || true)"
+  if [[ -n "$service_names" ]]; then
+    while IFS= read -r svc_name; do
+      local new_svc_name="${app_name}-${svc_name}"
+      # Rename service
+      resolved="$(echo "$resolved" | yq eval ".services.\"$new_svc_name\" = .services.\"$svc_name\" | del(.services.\"$svc_name\")" -)"
+      # Update links to reference renamed service
+      local svc_type
+      svc_type="$(echo "$resolved" | yq eval ".services.\"$new_svc_name\".type" -)"
+      local current_link
+      current_link="$(echo "$resolved" | yq eval ".apps.\"$app_name\".links.\"$svc_type\" // \"\"" -)"
+      if [[ "$current_link" == "$svc_name" ]]; then
+        resolved="$(echo "$resolved" | yq eval ".apps.\"$app_name\".links.\"$svc_type\" = \"$new_svc_name\"" -)"
+      fi
+    done <<<"$service_names"
+  fi
+
+  # If --no-ssl: remove letsencrypt field
+  if [[ "$no_ssl" == "true" ]]; then
+    resolved="$(echo "$resolved" | yq eval "del(.apps.\"$app_name\".letsencrypt)" -)"
+  fi
+
+  # Replace template variables
+  resolved="${resolved//%DOMAIN%/$domain}"
+  resolved="${resolved//%APP_NAME%/$app_name}"
+  resolved="${resolved//%SECRET%/$secret}"
+  resolved="${resolved//%SECRET_BASE64_32%/$secret_base64}"
+
+  echo "$resolved"
+}
+
+# Post-process connection_env after dokkufile apply.
+# Reads DATABASE_URL or REDIS_URL, parses it, and sets individual env vars.
+post_process_connection_env() {
+  local app_name="$1"
+  local manifest="$2"
+
+  local mode
+  mode="$(get_manifest_field "$manifest" '.library.connection_env.mode // ""')"
+  if [[ -z "$mode" ]]; then
+    return 0
+  fi
+
+  local service_type
+  service_type="$(get_manifest_field "$manifest" '.library.connection_env.type // ""')"
+
+  # Determine which URL to read based on service type
+  local url_var="DATABASE_URL"
+  if [[ "$service_type" == "redis" ]]; then
+    url_var="REDIS_URL"
+  fi
+
+  local url
+  url="$(dokku_cmd config:get "$app_name" "$url_var" 2>/dev/null || echo "")"
+  if [[ -z "$url" ]]; then
+    echo "       Warning: $url_var not set, skipping connection_env post-processing"
+    return 0
+  fi
+
+  case "$mode" in
+    env)
+      local env_var
+      env_var="$(get_manifest_field "$manifest" '.library.connection_env.env_var // ""')"
+      if [[ -n "$env_var" ]]; then
+        local scheme
+        scheme="$(get_manifest_field "$manifest" '.library.connection_env.scheme // ""')"
+        if [[ -n "$scheme" ]]; then
+          url="${url/postgres:\/\//${scheme}:\/\/}"
+        fi
+        echo "       Setting $env_var from $url_var"
+        dokku_cmd config:set --no-restart "$app_name" "$env_var=$url"
+      fi
+      ;;
+    prefix)
+      local prefix sep case_mode
+      prefix="$(get_manifest_field "$manifest" '.library.connection_env.prefix // ""')"
+      sep="$(get_manifest_field "$manifest" '.library.connection_env.separator // "__"')"
+      case_mode="$(get_manifest_field "$manifest" '.library.connection_env.case // "lower"')"
+      if [[ -n "$prefix" ]]; then
+        echo "       Setting ${prefix}${sep}* from $url_var"
+        local db_env_vars
+        db_env_vars="$(parse_database_url "$url" "$prefix" "$sep" "$case_mode")"
+        if [[ -n "$db_env_vars" ]]; then
+          # shellcheck disable=SC2086
+          dokku_cmd config:set --no-restart "$app_name" $db_env_vars
+        fi
+      fi
+      ;;
+    map)
+      local map_yaml
+      map_yaml="$(get_manifest_field "$manifest" '.library.connection_env.map')"
+      if [[ -n "$map_yaml" ]]; then
+        echo "       Setting database connection vars from $url_var"
+        local map_env_args
+        map_env_args="$(parse_database_url_map "$url" "$map_yaml")"
+        if [[ -n "$map_env_args" ]]; then
+          # shellcheck disable=SC2086
+          dokku_cmd config:set --no-restart "$app_name" $map_env_args
+        fi
+      fi
+      ;;
+  esac
 }

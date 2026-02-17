@@ -1,0 +1,40 @@
+library:
+  description: Self-hosted read-it-later app
+  url: https://wallabag.org
+  prompts:
+    - key: DOMAIN
+      question: Domain for Wallabag
+      default: wallabag.%HOSTNAME%
+  connection_env:
+    service: db
+    type: postgres
+    mode: prefix
+    prefix: "SYMFONY__ENV__DATABASE"
+    separator: "_"
+    case: upper
+
+services:
+  db:
+    type: postgres
+
+apps:
+  wallabag:
+    image: wallabag/wallabag:latest
+    domains: ["%DOMAIN%"]
+    links:
+      postgres: db
+    env:
+      SYMFONY__ENV__DOMAIN_NAME: "http://%DOMAIN%"
+      SYMFONY__ENV__DATABASE_DRIVER: pdo_pgsql
+      SYMFONY__ENV__DATABASE_TABLE_PREFIX: "wallabag_"
+      POPULATE_DATABASE: "True"
+      SYMFONY__ENV__SERVER_NAME: Wallabag
+      SYMFONY__ENV__FOSUSER_REGISTRATION: "false"
+      SYMFONY__ENV__SECRET: "%SECRET%"
+    ports:
+      http: "80:80"
+    letsencrypt: true
+    healthchecks:
+      web:
+        - path: /
+          timeout: 90
