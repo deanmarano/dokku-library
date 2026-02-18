@@ -52,6 +52,7 @@ jobs:
               - 'package-lock.json'
               - 'tsconfig.json'
               - '.github/workflows/ci.yml'
+              - '.github/workflows/e2e-app.yml'
             lint:
               - 'commands'
               - 'config'
@@ -149,1473 +150,199 @@ jobs:
     if: |
       !failure() && !cancelled() &&
       (needs.changes.outputs.core == 'true' || needs.changes.outputs.e2e-checkout == 'true')
-    runs-on: ubuntu-22.04
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-      - name: Install dependencies
-        run: npm ci && npx playwright install --with-deps
-      - name: Install Dokku
-        run: |
-          wget -NP . https://packagecloud.io/dokku/dokku/gpgkey
-          sudo apt-key add gpgkey
-          echo "deb https://packagecloud.io/dokku/dokku/ubuntu/ jammy main" | sudo tee /etc/apt/sources.list.d/dokku.list
-          sudo apt-get update
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y dokku
-          sudo dokku plugin:install-dependencies --core
-      - name: Install dokku-postgres
-        run: sudo dokku plugin:install https://github.com/dokku/dokku-postgres.git postgres
-      - name: Install dokkufile plugin
-        run: |
-          sudo dokku plugin:install https://github.com/deanmarano/dokkufile.git dokkufile || true
-      - name: Install library plugin
-        run: |
-          sudo mkdir -p /var/lib/dokku/plugins/available/library/subcommands
-          sudo mkdir -p /var/lib/dokku/plugins/available/library/library
-          sudo cp commands config functions install plugin.toml /var/lib/dokku/plugins/available/library/
-          sudo cp subcommands/* /var/lib/dokku/plugins/available/library/subcommands/
-          sudo cp -r library/* /var/lib/dokku/plugins/available/library/library/
-          sudo chmod +x /var/lib/dokku/plugins/available/library/commands
-          sudo chmod +x /var/lib/dokku/plugins/available/library/subcommands/*
-          sudo dokku plugin:enable library || true
-          sudo bash /var/lib/dokku/plugins/enabled/library/install
-          sudo dokku library:list
-      - name: Deploy test app via bash
-        run: |
-          echo "127.0.0.1 test-uptime-kuma.test.local" | sudo tee -a /etc/hosts
-          sudo dokku library:checkout uptime-kuma \
-            --name=test-uptime-kuma \
-            --domain=test-uptime-kuma.test.local \
-            --no-ssl --no-auth --non-interactive
-      - name: Verify deployment state
-        run: |
-          echo "=== Dokku version ==="
-          dokku version || true
-          echo "=== App exists? ==="
-          sudo dokku apps:exists test-uptime-kuma && echo "YES" || echo "NO"
-          echo "=== ps:report ==="
-          sudo dokku ps:report test-uptime-kuma 2>&1 || true
-          echo "=== Docker containers ==="
-          sudo docker ps -a 2>&1 || true
-          echo "=== Library state directory ==="
-          ls -laR /var/lib/dokku/services/library/apps/test-uptime-kuma/ 2>&1 || echo "STATE DIR MISSING"
-          echo "=== Ports config ==="
-          sudo dokku ports:report test-uptime-kuma 2>&1 || true
-          echo "=== Proxy config ==="
-          sudo dokku proxy:report test-uptime-kuma 2>&1 || true
-          echo "=== Nginx config ==="
-          sudo cat /home/dokku/test-uptime-kuma/nginx.conf 2>&1 || echo "No nginx.conf"
-          echo "=== DEPLOYED flag ==="
-          ls -la /home/dokku/test-uptime-kuma/DEPLOYED 2>&1 || echo "DEPLOYED file missing"
-      - name: Run checkout e2e tests
-        run: npx playwright test tests/e2e/checkout.spec.ts --project=integration
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: e2e-checkout-results
-          path: playwright-report/
-      - name: Collect logs on failure
-        if: failure()
-        run: |
-          echo "=== Plugin paths ==="
-          ls -la /var/lib/dokku/plugins/available/library/ || true
-          ls -la /var/lib/dokku/plugins/enabled/library/ || true
-          echo "=== Try running library:list ==="
-          sudo dokku library:list 2>&1 || true
-          echo "=== Try running library:list --installed ==="
-          sudo dokku library:list --installed 2>&1 || true
-          echo "=== Dokku apps ==="
-          sudo dokku apps:list 2>/dev/null || true
-          echo "=== ps:report ==="
-          sudo dokku ps:report 2>/dev/null || true
-          echo "=== Docker containers ==="
-          sudo docker ps -a 2>/dev/null || true
-          echo "=== Docker logs ==="
-          for container in $(sudo docker ps -aq 2>/dev/null); do
-            echo "--- Container $container ---"
-            sudo docker logs --tail 50 "$container" 2>/dev/null || true
-          done
-          echo "=== Library state ==="
-          ls -laR /var/lib/dokku/services/library/apps/ 2>&1 || echo "No state dir"
-          echo "=== DEPLOYED flag ==="
-          ls -la /home/dokku/test-uptime-kuma/DEPLOYED 2>&1 || echo "DEPLOYED file missing"
+    uses: ./.github/workflows/e2e-app.yml
+    with:
+      app-name: test-uptime-kuma
+      manifest: uptime-kuma
+      test-spec: tests/e2e/checkout.spec.ts
+      dokku-plugins: postgres
 
   e2e-lifecycle:
     needs: [changes, lint, unit-tests]
     if: |
       !failure() && !cancelled() &&
       (needs.changes.outputs.core == 'true' || needs.changes.outputs.e2e-lifecycle == 'true')
-    runs-on: ubuntu-22.04
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-      - name: Install dependencies
-        run: npm ci && npx playwright install --with-deps
-      - name: Install Dokku
-        run: |
-          wget -NP . https://packagecloud.io/dokku/dokku/gpgkey
-          sudo apt-key add gpgkey
-          echo "deb https://packagecloud.io/dokku/dokku/ubuntu/ jammy main" | sudo tee /etc/apt/sources.list.d/dokku.list
-          sudo apt-get update
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y dokku
-          sudo dokku plugin:install-dependencies --core
-      - name: Install dokku-postgres
-        run: sudo dokku plugin:install https://github.com/dokku/dokku-postgres.git postgres
-      - name: Install dokkufile plugin
-        run: |
-          sudo dokku plugin:install https://github.com/deanmarano/dokkufile.git dokkufile || true
-      - name: Install library plugin
-        run: |
-          sudo mkdir -p /var/lib/dokku/plugins/available/library/subcommands
-          sudo mkdir -p /var/lib/dokku/plugins/available/library/library
-          sudo cp commands config functions install plugin.toml /var/lib/dokku/plugins/available/library/
-          sudo cp subcommands/* /var/lib/dokku/plugins/available/library/subcommands/
-          sudo cp -r library/* /var/lib/dokku/plugins/available/library/library/
-          sudo chmod +x /var/lib/dokku/plugins/available/library/commands
-          sudo chmod +x /var/lib/dokku/plugins/available/library/subcommands/*
-          sudo dokku plugin:enable library || true
-          sudo bash /var/lib/dokku/plugins/enabled/library/install
-          sudo dokku library:list
-      - name: Deploy test app via bash
-        run: |
-          echo "127.0.0.1 test-lifecycle-app.test.local" | sudo tee -a /etc/hosts
-          sudo dokku library:checkout uptime-kuma \
-            --name=test-lifecycle-app \
-            --domain=test-lifecycle-app.test.local \
-            --no-ssl --no-auth --non-interactive
-      - name: Verify deployment state
-        run: |
-          echo "=== App exists? ==="
-          sudo dokku apps:exists test-lifecycle-app && echo "YES" || echo "NO"
-          echo "=== ps:report ==="
-          sudo dokku ps:report test-lifecycle-app 2>&1 || true
-          echo "=== Library state ==="
-          ls -laR /var/lib/dokku/services/library/apps/test-lifecycle-app/ 2>&1 || echo "STATE DIR MISSING"
-      - name: Run lifecycle e2e tests
-        run: npx playwright test tests/e2e/lifecycle.spec.ts --project=integration
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: e2e-lifecycle-results
-          path: playwright-report/
-      - name: Collect logs on failure
-        if: failure()
-        run: |
-          echo "=== Dokku apps ==="
-          sudo dokku apps:list 2>/dev/null || true
-          echo "=== ps:report ==="
-          sudo dokku ps:report 2>/dev/null || true
-          echo "=== Docker containers ==="
-          sudo docker ps -a 2>/dev/null || true
-          echo "=== Docker logs ==="
-          for container in $(sudo docker ps -aq 2>/dev/null); do
-            echo "--- Container $container ---"
-            sudo docker logs --tail 50 "$container" 2>/dev/null || true
-          done
-          echo "=== Library state ==="
-          ls -laR /var/lib/dokku/services/library/apps/ 2>&1 || echo "No state dir"
+    uses: ./.github/workflows/e2e-app.yml
+    with:
+      app-name: test-lifecycle-app
+      manifest: uptime-kuma
+      test-spec: tests/e2e/lifecycle.spec.ts
+      dokku-plugins: postgres
 
   e2e-doctor:
     needs: [changes, lint, unit-tests]
     if: |
       !failure() && !cancelled() &&
       (needs.changes.outputs.core == 'true' || needs.changes.outputs.e2e-doctor == 'true')
-    runs-on: ubuntu-22.04
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-      - name: Install dependencies
-        run: npm ci && npx playwright install --with-deps
-      - name: Install Dokku
-        run: |
-          wget -NP . https://packagecloud.io/dokku/dokku/gpgkey
-          sudo apt-key add gpgkey
-          echo "deb https://packagecloud.io/dokku/dokku/ubuntu/ jammy main" | sudo tee /etc/apt/sources.list.d/dokku.list
-          sudo apt-get update
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y dokku
-          sudo dokku plugin:install-dependencies --core
-      - name: Install dokku-postgres
-        run: sudo dokku plugin:install https://github.com/dokku/dokku-postgres.git postgres
-      - name: Install dokkufile plugin
-        run: |
-          sudo dokku plugin:install https://github.com/deanmarano/dokkufile.git dokkufile || true
-      - name: Install library plugin
-        run: |
-          sudo mkdir -p /var/lib/dokku/plugins/available/library/subcommands
-          sudo mkdir -p /var/lib/dokku/plugins/available/library/library
-          sudo cp commands config functions install plugin.toml /var/lib/dokku/plugins/available/library/
-          sudo cp subcommands/* /var/lib/dokku/plugins/available/library/subcommands/
-          sudo cp -r library/* /var/lib/dokku/plugins/available/library/library/
-          sudo chmod +x /var/lib/dokku/plugins/available/library/commands
-          sudo chmod +x /var/lib/dokku/plugins/available/library/subcommands/*
-          sudo dokku plugin:enable library || true
-          sudo bash /var/lib/dokku/plugins/enabled/library/install
-          sudo dokku library:list
-      - name: Deploy test app via bash
-        run: |
-          echo "127.0.0.1 test-doctor-app.test.local" | sudo tee -a /etc/hosts
-          sudo dokku library:checkout uptime-kuma \
-            --name=test-doctor-app \
-            --domain=test-doctor-app.test.local \
-            --no-ssl --no-auth --non-interactive
-      - name: Verify deployment state
-        run: |
-          echo "=== App exists? ==="
-          sudo dokku apps:exists test-doctor-app && echo "YES" || echo "NO"
-          echo "=== ps:report ==="
-          sudo dokku ps:report test-doctor-app 2>&1 || true
-          echo "=== Library state ==="
-          ls -laR /var/lib/dokku/services/library/apps/test-doctor-app/ 2>&1 || echo "STATE DIR MISSING"
-          echo "=== git:report ==="
-          sudo dokku git:report test-doctor-app 2>&1 || true
-          echo "=== domains:report ==="
-          sudo dokku domains:report test-doctor-app 2>&1 || true
-          echo "=== ports:report ==="
-          sudo dokku ports:report test-doctor-app 2>&1 || true
-      - name: Run doctor e2e tests
-        run: npx playwright test tests/e2e/doctor.spec.ts --project=integration
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: e2e-doctor-results
-          path: playwright-report/
-      - name: Collect logs on failure
-        if: failure()
-        run: |
-          echo "=== Dokku apps ==="
-          sudo dokku apps:list 2>/dev/null || true
-          echo "=== ps:report ==="
-          sudo dokku ps:report 2>/dev/null || true
-          echo "=== Docker containers ==="
-          sudo docker ps -a 2>/dev/null || true
-          echo "=== Docker logs ==="
-          for container in $(sudo docker ps -aq 2>/dev/null); do
-            echo "--- Container $container ---"
-            sudo docker logs --tail 50 "$container" 2>/dev/null || true
-          done
-          echo "=== Library state ==="
-          ls -laR /var/lib/dokku/services/library/apps/ 2>&1 || echo "No state dir"
-          echo "=== doctor output ==="
-          sudo dokku library:doctor test-doctor-app 2>&1 || true
+    uses: ./.github/workflows/e2e-app.yml
+    with:
+      app-name: test-doctor-app
+      manifest: uptime-kuma
+      test-spec: tests/e2e/doctor.spec.ts
+      dokku-plugins: postgres
 
   e2e-ghost:
     needs: [changes, lint, unit-tests]
     if: |
       !failure() && !cancelled() &&
       (needs.changes.outputs.core == 'true' || needs.changes.outputs.e2e-ghost == 'true')
-    runs-on: ubuntu-22.04
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-      - name: Install dependencies
-        run: npm ci && npx playwright install --with-deps
-      - name: Install Dokku
-        run: |
-          wget -NP . https://packagecloud.io/dokku/dokku/gpgkey
-          sudo apt-key add gpgkey
-          echo "deb https://packagecloud.io/dokku/dokku/ubuntu/ jammy main" | sudo tee /etc/apt/sources.list.d/dokku.list
-          sudo apt-get update
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y dokku
-          sudo dokku plugin:install-dependencies --core
-      - name: Install dokku-mariadb
-        run: sudo dokku plugin:install https://github.com/dokku/dokku-mariadb.git mariadb
-      - name: Install dokkufile plugin
-        run: |
-          sudo dokku plugin:install https://github.com/deanmarano/dokkufile.git dokkufile || true
-      - name: Install library plugin
-        run: |
-          sudo mkdir -p /var/lib/dokku/plugins/available/library/subcommands
-          sudo mkdir -p /var/lib/dokku/plugins/available/library/library
-          sudo cp commands config functions install plugin.toml /var/lib/dokku/plugins/available/library/
-          sudo cp subcommands/* /var/lib/dokku/plugins/available/library/subcommands/
-          sudo cp -r library/* /var/lib/dokku/plugins/available/library/library/
-          sudo chmod +x /var/lib/dokku/plugins/available/library/commands
-          sudo chmod +x /var/lib/dokku/plugins/available/library/subcommands/*
-          sudo dokku plugin:enable library || true
-          sudo bash /var/lib/dokku/plugins/enabled/library/install
-          sudo dokku library:list
-      - name: Deploy ghost via bash
-        run: |
-          echo "127.0.0.1 test-ghost.test.local" | sudo tee -a /etc/hosts
-          sudo dokku library:checkout ghost \
-            --name=test-ghost \
-            --domain=test-ghost.test.local \
-            --no-ssl --no-auth --no-mail --non-interactive
-      - name: Verify deployment state
-        run: |
-          echo "=== App exists? ==="
-          sudo dokku apps:exists test-ghost && echo "YES" || echo "NO"
-          echo "=== ps:report ==="
-          sudo dokku ps:report test-ghost 2>&1 || true
-          echo "=== Library state ==="
-          ls -laR /var/lib/dokku/services/library/apps/test-ghost/ 2>&1 || echo "STATE DIR MISSING"
-          echo "=== Config ==="
-          sudo dokku config:show test-ghost 2>&1 || true
-          echo "=== MariaDB ==="
-          sudo dokku mariadb:exists test-ghost-db && echo "DB EXISTS" || echo "DB MISSING"
-          sudo dokku mariadb:linked test-ghost-db test-ghost && echo "DB LINKED" || echo "DB NOT LINKED"
-      - name: Run ghost e2e tests
-        run: npx playwright test tests/e2e/ghost.spec.ts --project=integration
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: e2e-ghost-results
-          path: playwright-report/
-      - name: Collect logs on failure
-        if: failure()
-        run: |
-          echo "=== Dokku apps ==="
-          sudo dokku apps:list 2>/dev/null || true
-          echo "=== ps:report ==="
-          sudo dokku ps:report 2>/dev/null || true
-          echo "=== Docker containers ==="
-          sudo docker ps -a 2>/dev/null || true
-          echo "=== Docker logs ==="
-          for container in $(sudo docker ps -aq 2>/dev/null); do
-            echo "--- Container $container ---"
-            sudo docker logs --tail 50 "$container" 2>/dev/null || true
-          done
-          echo "=== Library state ==="
-          ls -laR /var/lib/dokku/services/library/apps/ 2>&1 || echo "No state dir"
-          echo "=== MariaDB info ==="
-          sudo dokku mariadb:info test-ghost-db 2>&1 || true
+    uses: ./.github/workflows/e2e-app.yml
+    with:
+      app-name: test-ghost
+      manifest: ghost
+      test-spec: tests/e2e/ghost.spec.ts
+      dokku-plugins: mariadb
+      extra-deploy-flags: "--no-mail"
 
   e2e-linkding:
     needs: [changes, lint, unit-tests]
     if: |
       !failure() && !cancelled() &&
       (needs.changes.outputs.core == 'true' || needs.changes.outputs.e2e-linkding == 'true')
-    runs-on: ubuntu-22.04
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-      - name: Install dependencies
-        run: npm ci && npx playwright install --with-deps
-      - name: Install Dokku
-        run: |
-          wget -NP . https://packagecloud.io/dokku/dokku/gpgkey
-          sudo apt-key add gpgkey
-          echo "deb https://packagecloud.io/dokku/dokku/ubuntu/ jammy main" | sudo tee /etc/apt/sources.list.d/dokku.list
-          sudo apt-get update
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y dokku
-          sudo dokku plugin:install-dependencies --core
-      - name: Install dokku-postgres
-        run: sudo dokku plugin:install https://github.com/dokku/dokku-postgres.git postgres
-      - name: Install dokkufile plugin
-        run: |
-          sudo dokku plugin:install https://github.com/deanmarano/dokkufile.git dokkufile || true
-      - name: Install library plugin
-        run: |
-          sudo mkdir -p /var/lib/dokku/plugins/available/library/subcommands
-          sudo mkdir -p /var/lib/dokku/plugins/available/library/library
-          sudo cp commands config functions install plugin.toml /var/lib/dokku/plugins/available/library/
-          sudo cp subcommands/* /var/lib/dokku/plugins/available/library/subcommands/
-          sudo cp -r library/* /var/lib/dokku/plugins/available/library/library/
-          sudo chmod +x /var/lib/dokku/plugins/available/library/commands
-          sudo chmod +x /var/lib/dokku/plugins/available/library/subcommands/*
-          sudo dokku plugin:enable library || true
-          sudo bash /var/lib/dokku/plugins/enabled/library/install
-          sudo dokku library:list
-      - name: Deploy linkding via bash
-        run: |
-          echo "127.0.0.1 test-linkding.test.local" | sudo tee -a /etc/hosts
-          sudo dokku library:checkout linkding \
-            --name=test-linkding \
-            --domain=test-linkding.test.local \
-            --no-ssl --no-auth --non-interactive
-      - name: Verify deployment state
-        run: |
-          echo "=== App exists? ==="
-          sudo dokku apps:exists test-linkding && echo "YES" || echo "NO"
-          echo "=== ps:report ==="
-          sudo dokku ps:report test-linkding 2>&1 || true
-          echo "=== Library state ==="
-          ls -laR /var/lib/dokku/services/library/apps/test-linkding/ 2>&1 || echo "STATE DIR MISSING"
-          echo "=== Config ==="
-          sudo dokku config:show test-linkding 2>&1 || true
-          echo "=== PostgreSQL ==="
-          sudo dokku postgres:exists test-linkding-db && echo "DB EXISTS" || echo "DB MISSING"
-          sudo dokku postgres:linked test-linkding-db test-linkding && echo "DB LINKED" || echo "DB NOT LINKED"
-      - name: Run linkding e2e tests
-        run: npx playwright test tests/e2e/linkding.spec.ts --project=integration
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: e2e-linkding-results
-          path: playwright-report/
-      - name: Collect logs on failure
-        if: failure()
-        run: |
-          echo "=== Dokku apps ==="
-          sudo dokku apps:list 2>/dev/null || true
-          echo "=== ps:report ==="
-          sudo dokku ps:report 2>/dev/null || true
-          echo "=== Docker containers ==="
-          sudo docker ps -a 2>/dev/null || true
-          echo "=== Docker logs ==="
-          for container in $(sudo docker ps -aq 2>/dev/null); do
-            echo "--- Container $container ---"
-            sudo docker logs --tail 50 "$container" 2>/dev/null || true
-          done
-          echo "=== Library state ==="
-          ls -laR /var/lib/dokku/services/library/apps/ 2>&1 || echo "No state dir"
-          echo "=== PostgreSQL info ==="
-          sudo dokku postgres:info test-linkding-db 2>&1 || true
+    uses: ./.github/workflows/e2e-app.yml
+    with:
+      app-name: test-linkding
+      manifest: linkding
+      test-spec: tests/e2e/linkding.spec.ts
+      dokku-plugins: postgres
 
   e2e-miniflux:
     needs: [changes, lint, unit-tests]
     if: |
       !failure() && !cancelled() &&
       (needs.changes.outputs.core == 'true' || needs.changes.outputs.e2e-miniflux == 'true')
-    runs-on: ubuntu-22.04
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-      - name: Install dependencies
-        run: npm ci && npx playwright install --with-deps
-      - name: Install Dokku
-        run: |
-          wget -NP . https://packagecloud.io/dokku/dokku/gpgkey
-          sudo apt-key add gpgkey
-          echo "deb https://packagecloud.io/dokku/dokku/ubuntu/ jammy main" | sudo tee /etc/apt/sources.list.d/dokku.list
-          sudo apt-get update
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y dokku
-          sudo dokku plugin:install-dependencies --core
-      - name: Install dokku-postgres
-        run: sudo dokku plugin:install https://github.com/dokku/dokku-postgres.git postgres
-      - name: Install dokkufile plugin
-        run: |
-          sudo dokku plugin:install https://github.com/deanmarano/dokkufile.git dokkufile || true
-      - name: Install library plugin
-        run: |
-          sudo mkdir -p /var/lib/dokku/plugins/available/library/subcommands
-          sudo mkdir -p /var/lib/dokku/plugins/available/library/library
-          sudo cp commands config functions install plugin.toml /var/lib/dokku/plugins/available/library/
-          sudo cp subcommands/* /var/lib/dokku/plugins/available/library/subcommands/
-          sudo cp -r library/* /var/lib/dokku/plugins/available/library/library/
-          sudo chmod +x /var/lib/dokku/plugins/available/library/commands
-          sudo chmod +x /var/lib/dokku/plugins/available/library/subcommands/*
-          sudo dokku plugin:enable library || true
-          sudo bash /var/lib/dokku/plugins/enabled/library/install
-          sudo dokku library:list
-      - name: Deploy miniflux via bash
-        run: |
-          echo "127.0.0.1 test-miniflux.test.local" | sudo tee -a /etc/hosts
-          sudo dokku library:checkout miniflux \
-            --name=test-miniflux \
-            --domain=test-miniflux.test.local \
-            --no-ssl --no-auth --non-interactive
-      - name: Verify deployment state
-        run: |
-          echo "=== App exists? ==="
-          sudo dokku apps:exists test-miniflux && echo "YES" || echo "NO"
-          echo "=== ps:report ==="
-          sudo dokku ps:report test-miniflux 2>&1 || true
-          echo "=== Library state ==="
-          ls -laR /var/lib/dokku/services/library/apps/test-miniflux/ 2>&1 || echo "STATE DIR MISSING"
-          echo "=== Config ==="
-          sudo dokku config:show test-miniflux 2>&1 || true
-          echo "=== PostgreSQL ==="
-          sudo dokku postgres:exists test-miniflux-db && echo "DB EXISTS" || echo "DB MISSING"
-          sudo dokku postgres:linked test-miniflux-db test-miniflux && echo "DB LINKED" || echo "DB NOT LINKED"
-      - name: Run miniflux e2e tests
-        run: npx playwright test tests/e2e/miniflux.spec.ts --project=integration
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: e2e-miniflux-results
-          path: playwright-report/
-      - name: Collect logs on failure
-        if: failure()
-        run: |
-          echo "=== Dokku apps ==="
-          sudo dokku apps:list 2>/dev/null || true
-          echo "=== ps:report ==="
-          sudo dokku ps:report 2>/dev/null || true
-          echo "=== Docker containers ==="
-          sudo docker ps -a 2>/dev/null || true
-          echo "=== Docker logs ==="
-          for container in $(sudo docker ps -aq 2>/dev/null); do
-            echo "--- Container $container ---"
-            sudo docker logs --tail 50 "$container" 2>/dev/null || true
-          done
-          echo "=== Library state ==="
-          ls -laR /var/lib/dokku/services/library/apps/ 2>&1 || echo "No state dir"
-          echo "=== PostgreSQL info ==="
-          sudo dokku postgres:info test-miniflux-db 2>&1 || true
+    uses: ./.github/workflows/e2e-app.yml
+    with:
+      app-name: test-miniflux
+      manifest: miniflux
+      test-spec: tests/e2e/miniflux.spec.ts
+      dokku-plugins: postgres
 
   e2e-vaultwarden:
     needs: [changes, lint, unit-tests]
     if: |
       !failure() && !cancelled() &&
       (needs.changes.outputs.core == 'true' || needs.changes.outputs.e2e-vaultwarden == 'true')
-    runs-on: ubuntu-22.04
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-      - name: Install dependencies
-        run: npm ci && npx playwright install --with-deps
-      - name: Install Dokku
-        run: |
-          wget -NP . https://packagecloud.io/dokku/dokku/gpgkey
-          sudo apt-key add gpgkey
-          echo "deb https://packagecloud.io/dokku/dokku/ubuntu/ jammy main" | sudo tee /etc/apt/sources.list.d/dokku.list
-          sudo apt-get update
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y dokku
-          sudo dokku plugin:install-dependencies --core
-      - name: Install dokku-postgres
-        run: sudo dokku plugin:install https://github.com/dokku/dokku-postgres.git postgres
-      - name: Install dokkufile plugin
-        run: |
-          sudo dokku plugin:install https://github.com/deanmarano/dokkufile.git dokkufile || true
-      - name: Install library plugin
-        run: |
-          sudo mkdir -p /var/lib/dokku/plugins/available/library/subcommands
-          sudo mkdir -p /var/lib/dokku/plugins/available/library/library
-          sudo cp commands config functions install plugin.toml /var/lib/dokku/plugins/available/library/
-          sudo cp subcommands/* /var/lib/dokku/plugins/available/library/subcommands/
-          sudo cp -r library/* /var/lib/dokku/plugins/available/library/library/
-          sudo chmod +x /var/lib/dokku/plugins/available/library/commands
-          sudo chmod +x /var/lib/dokku/plugins/available/library/subcommands/*
-          sudo dokku plugin:enable library || true
-          sudo bash /var/lib/dokku/plugins/enabled/library/install
-          sudo dokku library:list
-      - name: Deploy vaultwarden via bash
-        run: |
-          echo "127.0.0.1 test-vaultwarden.test.local" | sudo tee -a /etc/hosts
-          sudo dokku library:checkout vaultwarden \
-            --name=test-vaultwarden \
-            --domain=test-vaultwarden.test.local \
-            --no-ssl --no-auth --non-interactive
-      - name: Verify deployment state
-        run: |
-          echo "=== App exists? ==="
-          sudo dokku apps:exists test-vaultwarden && echo "YES" || echo "NO"
-          echo "=== ps:report ==="
-          sudo dokku ps:report test-vaultwarden 2>&1 || true
-          echo "=== Library state ==="
-          ls -laR /var/lib/dokku/services/library/apps/test-vaultwarden/ 2>&1 || echo "STATE DIR MISSING"
-          echo "=== Config ==="
-          sudo dokku config:show test-vaultwarden 2>&1 || true
-          echo "=== Storage ==="
-          sudo dokku storage:report test-vaultwarden 2>&1 || true
-          echo "=== PostgreSQL ==="
-          sudo dokku postgres:exists test-vaultwarden-db && echo "DB EXISTS" || echo "DB MISSING"
-          sudo dokku postgres:linked test-vaultwarden-db test-vaultwarden && echo "DB LINKED" || echo "DB NOT LINKED"
-      - name: Run vaultwarden e2e tests
-        run: npx playwright test tests/e2e/vaultwarden.spec.ts --project=integration
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: e2e-vaultwarden-results
-          path: playwright-report/
-      - name: Collect logs on failure
-        if: failure()
-        run: |
-          echo "=== Dokku apps ==="
-          sudo dokku apps:list 2>/dev/null || true
-          echo "=== ps:report ==="
-          sudo dokku ps:report 2>/dev/null || true
-          echo "=== Docker containers ==="
-          sudo docker ps -a 2>/dev/null || true
-          echo "=== Docker logs ==="
-          for container in $(sudo docker ps -aq 2>/dev/null); do
-            echo "--- Container $container ---"
-            sudo docker logs --tail 50 "$container" 2>/dev/null || true
-          done
-          echo "=== Library state ==="
-          ls -laR /var/lib/dokku/services/library/apps/ 2>&1 || echo "No state dir"
-          echo "=== PostgreSQL info ==="
-          sudo dokku postgres:info test-vaultwarden-db 2>&1 || true
+    uses: ./.github/workflows/e2e-app.yml
+    with:
+      app-name: test-vaultwarden
+      manifest: vaultwarden
+      test-spec: tests/e2e/vaultwarden.spec.ts
+      dokku-plugins: postgres
 
   e2e-grafana:
     needs: [changes, lint, unit-tests]
     if: |
       !failure() && !cancelled() &&
       (needs.changes.outputs.core == 'true' || needs.changes.outputs.e2e-grafana == 'true')
-    runs-on: ubuntu-22.04
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-      - name: Install dependencies
-        run: npm ci && npx playwright install --with-deps
-      - name: Install Dokku
-        run: |
-          wget -NP . https://packagecloud.io/dokku/dokku/gpgkey
-          sudo apt-key add gpgkey
-          echo "deb https://packagecloud.io/dokku/dokku/ubuntu/ jammy main" | sudo tee /etc/apt/sources.list.d/dokku.list
-          sudo apt-get update
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y dokku
-          sudo dokku plugin:install-dependencies --core
-      - name: Install dokku-postgres
-        run: sudo dokku plugin:install https://github.com/dokku/dokku-postgres.git postgres
-      - name: Install dokkufile plugin
-        run: |
-          sudo dokku plugin:install https://github.com/deanmarano/dokkufile.git dokkufile || true
-      - name: Install library plugin
-        run: |
-          sudo mkdir -p /var/lib/dokku/plugins/available/library/subcommands
-          sudo mkdir -p /var/lib/dokku/plugins/available/library/library
-          sudo cp commands config functions install plugin.toml /var/lib/dokku/plugins/available/library/
-          sudo cp subcommands/* /var/lib/dokku/plugins/available/library/subcommands/
-          sudo cp -r library/* /var/lib/dokku/plugins/available/library/library/
-          sudo chmod +x /var/lib/dokku/plugins/available/library/commands
-          sudo chmod +x /var/lib/dokku/plugins/available/library/subcommands/*
-          sudo dokku plugin:enable library || true
-          sudo bash /var/lib/dokku/plugins/enabled/library/install
-          sudo dokku library:list
-      - name: Deploy grafana via bash
-        run: |
-          echo "127.0.0.1 test-grafana.test.local" | sudo tee -a /etc/hosts
-          sudo dokku library:checkout grafana \
-            --name=test-grafana \
-            --domain=test-grafana.test.local \
-            --no-ssl --no-auth --non-interactive
-      - name: Verify deployment state
-        run: |
-          echo "=== App exists? ==="
-          sudo dokku apps:exists test-grafana && echo "YES" || echo "NO"
-          echo "=== ps:report ==="
-          sudo dokku ps:report test-grafana 2>&1 || true
-          echo "=== Library state ==="
-          ls -laR /var/lib/dokku/services/library/apps/test-grafana/ 2>&1 || echo "STATE DIR MISSING"
-          echo "=== Config ==="
-          sudo dokku config:show test-grafana 2>&1 || true
-          echo "=== PostgreSQL ==="
-          sudo dokku postgres:exists test-grafana-db && echo "DB EXISTS" || echo "DB MISSING"
-          sudo dokku postgres:linked test-grafana-db test-grafana && echo "DB LINKED" || echo "DB NOT LINKED"
-      - name: Run grafana e2e tests
-        run: npx playwright test tests/e2e/grafana.spec.ts --project=integration
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: e2e-grafana-results
-          path: playwright-report/
-      - name: Collect logs on failure
-        if: failure()
-        run: |
-          echo "=== Dokku apps ==="
-          sudo dokku apps:list 2>/dev/null || true
-          echo "=== ps:report ==="
-          sudo dokku ps:report 2>/dev/null || true
-          echo "=== Docker containers ==="
-          sudo docker ps -a 2>/dev/null || true
-          echo "=== Docker logs ==="
-          for container in $(sudo docker ps -aq 2>/dev/null); do
-            echo "--- Container $container ---"
-            sudo docker logs --tail 50 "$container" 2>/dev/null || true
-          done
-          echo "=== Library state ==="
-          ls -laR /var/lib/dokku/services/library/apps/ 2>&1 || echo "No state dir"
-          echo "=== PostgreSQL info ==="
-          sudo dokku postgres:info test-grafana-db 2>&1 || true
+    uses: ./.github/workflows/e2e-app.yml
+    with:
+      app-name: test-grafana
+      manifest: grafana
+      test-spec: tests/e2e/grafana.spec.ts
+      dokku-plugins: postgres
 
   e2e-radarr:
     needs: [changes, lint, unit-tests]
     if: |
       !failure() && !cancelled() &&
       (needs.changes.outputs.core == 'true' || needs.changes.outputs.e2e-radarr == 'true')
-    runs-on: ubuntu-22.04
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-      - name: Install dependencies
-        run: npm ci && npx playwright install --with-deps
-      - name: Install Dokku
-        run: |
-          wget -NP . https://packagecloud.io/dokku/dokku/gpgkey
-          sudo apt-key add gpgkey
-          echo "deb https://packagecloud.io/dokku/dokku/ubuntu/ jammy main" | sudo tee /etc/apt/sources.list.d/dokku.list
-          sudo apt-get update
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y dokku
-          sudo dokku plugin:install-dependencies --core
-      - name: Install dokkufile plugin
-        run: |
-          sudo dokku plugin:install https://github.com/deanmarano/dokkufile.git dokkufile || true
-      - name: Install library plugin
-        run: |
-          sudo mkdir -p /var/lib/dokku/plugins/available/library/subcommands
-          sudo mkdir -p /var/lib/dokku/plugins/available/library/library
-          sudo cp commands config functions install plugin.toml /var/lib/dokku/plugins/available/library/
-          sudo cp subcommands/* /var/lib/dokku/plugins/available/library/subcommands/
-          sudo cp -r library/* /var/lib/dokku/plugins/available/library/library/
-          sudo chmod +x /var/lib/dokku/plugins/available/library/commands
-          sudo chmod +x /var/lib/dokku/plugins/available/library/subcommands/*
-          sudo dokku plugin:enable library || true
-          sudo bash /var/lib/dokku/plugins/enabled/library/install
-          sudo dokku library:list
-      - name: Deploy radarr via bash
-        run: |
-          echo "127.0.0.1 test-radarr.test.local" | sudo tee -a /etc/hosts
-          sudo dokku library:checkout radarr \
-            --name=test-radarr \
-            --domain=test-radarr.test.local \
-            --no-ssl --no-auth --non-interactive
-      - name: Verify deployment state
-        run: |
-          echo "=== App exists? ==="
-          sudo dokku apps:exists test-radarr && echo "YES" || echo "NO"
-          echo "=== ps:report ==="
-          sudo dokku ps:report test-radarr 2>&1 || true
-          echo "=== Library state ==="
-          ls -laR /var/lib/dokku/services/library/apps/test-radarr/ 2>&1 || echo "STATE DIR MISSING"
-          echo "=== Storage ==="
-          sudo dokku storage:report test-radarr 2>&1 || true
-      - name: Run radarr e2e tests
-        run: npx playwright test tests/e2e/radarr.spec.ts --project=integration
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: e2e-radarr-results
-          path: playwright-report/
-      - name: Collect logs on failure
-        if: failure()
-        run: |
-          echo "=== Dokku apps ==="
-          sudo dokku apps:list 2>/dev/null || true
-          echo "=== ps:report ==="
-          sudo dokku ps:report 2>/dev/null || true
-          echo "=== Docker containers ==="
-          sudo docker ps -a 2>/dev/null || true
-          echo "=== Docker logs ==="
-          for container in $(sudo docker ps -aq 2>/dev/null); do
-            echo "--- Container $container ---"
-            sudo docker logs --tail 50 "$container" 2>/dev/null || true
-          done
-          echo "=== Library state ==="
-          ls -laR /var/lib/dokku/services/library/apps/ 2>&1 || echo "No state dir"
+    uses: ./.github/workflows/e2e-app.yml
+    with:
+      app-name: test-radarr
+      manifest: radarr
+      test-spec: tests/e2e/radarr.spec.ts
 
   e2e-sonarr:
     needs: [changes, lint, unit-tests]
     if: |
       !failure() && !cancelled() &&
       (needs.changes.outputs.core == 'true' || needs.changes.outputs.e2e-sonarr == 'true')
-    runs-on: ubuntu-22.04
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-      - name: Install dependencies
-        run: npm ci && npx playwright install --with-deps
-      - name: Install Dokku
-        run: |
-          wget -NP . https://packagecloud.io/dokku/dokku/gpgkey
-          sudo apt-key add gpgkey
-          echo "deb https://packagecloud.io/dokku/dokku/ubuntu/ jammy main" | sudo tee /etc/apt/sources.list.d/dokku.list
-          sudo apt-get update
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y dokku
-          sudo dokku plugin:install-dependencies --core
-      - name: Install dokkufile plugin
-        run: |
-          sudo dokku plugin:install https://github.com/deanmarano/dokkufile.git dokkufile || true
-      - name: Install library plugin
-        run: |
-          sudo mkdir -p /var/lib/dokku/plugins/available/library/subcommands
-          sudo mkdir -p /var/lib/dokku/plugins/available/library/library
-          sudo cp commands config functions install plugin.toml /var/lib/dokku/plugins/available/library/
-          sudo cp subcommands/* /var/lib/dokku/plugins/available/library/subcommands/
-          sudo cp -r library/* /var/lib/dokku/plugins/available/library/library/
-          sudo chmod +x /var/lib/dokku/plugins/available/library/commands
-          sudo chmod +x /var/lib/dokku/plugins/available/library/subcommands/*
-          sudo dokku plugin:enable library || true
-          sudo bash /var/lib/dokku/plugins/enabled/library/install
-          sudo dokku library:list
-      - name: Deploy sonarr via bash
-        run: |
-          echo "127.0.0.1 test-sonarr.test.local" | sudo tee -a /etc/hosts
-          sudo dokku library:checkout sonarr \
-            --name=test-sonarr \
-            --domain=test-sonarr.test.local \
-            --no-ssl --no-auth --non-interactive
-      - name: Verify deployment state
-        run: |
-          echo "=== App exists? ==="
-          sudo dokku apps:exists test-sonarr && echo "YES" || echo "NO"
-          echo "=== ps:report ==="
-          sudo dokku ps:report test-sonarr 2>&1 || true
-          echo "=== Library state ==="
-          ls -laR /var/lib/dokku/services/library/apps/test-sonarr/ 2>&1 || echo "STATE DIR MISSING"
-          echo "=== Storage ==="
-          sudo dokku storage:report test-sonarr 2>&1 || true
-      - name: Run sonarr e2e tests
-        run: npx playwright test tests/e2e/sonarr.spec.ts --project=integration
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: e2e-sonarr-results
-          path: playwright-report/
-      - name: Collect logs on failure
-        if: failure()
-        run: |
-          echo "=== Dokku apps ==="
-          sudo dokku apps:list 2>/dev/null || true
-          echo "=== ps:report ==="
-          sudo dokku ps:report 2>/dev/null || true
-          echo "=== Docker containers ==="
-          sudo docker ps -a 2>/dev/null || true
-          echo "=== Docker logs ==="
-          for container in $(sudo docker ps -aq 2>/dev/null); do
-            echo "--- Container $container ---"
-            sudo docker logs --tail 50 "$container" 2>/dev/null || true
-          done
-          echo "=== Library state ==="
-          ls -laR /var/lib/dokku/services/library/apps/ 2>&1 || echo "No state dir"
+    uses: ./.github/workflows/e2e-app.yml
+    with:
+      app-name: test-sonarr
+      manifest: sonarr
+      test-spec: tests/e2e/sonarr.spec.ts
 
   e2e-jellyfin:
     needs: [changes, lint, unit-tests]
     if: |
       !failure() && !cancelled() &&
       (needs.changes.outputs.core == 'true' || needs.changes.outputs.e2e-jellyfin == 'true')
-    runs-on: ubuntu-22.04
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-      - name: Install dependencies
-        run: npm ci && npx playwright install --with-deps
-      - name: Install Dokku
-        run: |
-          wget -NP . https://packagecloud.io/dokku/dokku/gpgkey
-          sudo apt-key add gpgkey
-          echo "deb https://packagecloud.io/dokku/dokku/ubuntu/ jammy main" | sudo tee /etc/apt/sources.list.d/dokku.list
-          sudo apt-get update
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y dokku
-          sudo dokku plugin:install-dependencies --core
-      - name: Install dokkufile plugin
-        run: |
-          sudo dokku plugin:install https://github.com/deanmarano/dokkufile.git dokkufile || true
-      - name: Install library plugin
-        run: |
-          sudo mkdir -p /var/lib/dokku/plugins/available/library/subcommands
-          sudo mkdir -p /var/lib/dokku/plugins/available/library/library
-          sudo cp commands config functions install plugin.toml /var/lib/dokku/plugins/available/library/
-          sudo cp subcommands/* /var/lib/dokku/plugins/available/library/subcommands/
-          sudo cp -r library/* /var/lib/dokku/plugins/available/library/library/
-          sudo chmod +x /var/lib/dokku/plugins/available/library/commands
-          sudo chmod +x /var/lib/dokku/plugins/available/library/subcommands/*
-          sudo dokku plugin:enable library || true
-          sudo bash /var/lib/dokku/plugins/enabled/library/install
-          sudo dokku library:list
-      - name: Deploy jellyfin via bash
-        run: |
-          echo "127.0.0.1 test-jellyfin.test.local" | sudo tee -a /etc/hosts
-          sudo dokku library:checkout jellyfin \
-            --name=test-jellyfin \
-            --domain=test-jellyfin.test.local \
-            --no-ssl --no-auth --non-interactive
-      - name: Verify deployment state
-        run: |
-          echo "=== App exists? ==="
-          sudo dokku apps:exists test-jellyfin && echo "YES" || echo "NO"
-          echo "=== ps:report ==="
-          sudo dokku ps:report test-jellyfin 2>&1 || true
-          echo "=== Library state ==="
-          ls -laR /var/lib/dokku/services/library/apps/test-jellyfin/ 2>&1 || echo "STATE DIR MISSING"
-          echo "=== Storage ==="
-          sudo dokku storage:report test-jellyfin 2>&1 || true
-      - name: Run jellyfin e2e tests
-        run: npx playwright test tests/e2e/jellyfin.spec.ts --project=integration
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: e2e-jellyfin-results
-          path: playwright-report/
-      - name: Collect logs on failure
-        if: failure()
-        run: |
-          echo "=== Dokku apps ==="
-          sudo dokku apps:list 2>/dev/null || true
-          echo "=== ps:report ==="
-          sudo dokku ps:report 2>/dev/null || true
-          echo "=== Docker containers ==="
-          sudo docker ps -a 2>/dev/null || true
-          echo "=== Docker logs ==="
-          for container in $(sudo docker ps -aq 2>/dev/null); do
-            echo "--- Container $container ---"
-            sudo docker logs --tail 50 "$container" 2>/dev/null || true
-          done
-          echo "=== Library state ==="
-          ls -laR /var/lib/dokku/services/library/apps/ 2>&1 || echo "No state dir"
+    uses: ./.github/workflows/e2e-app.yml
+    with:
+      app-name: test-jellyfin
+      manifest: jellyfin
+      test-spec: tests/e2e/jellyfin.spec.ts
 
   e2e-uptime-kuma:
     needs: [changes, lint, unit-tests]
     if: |
       !failure() && !cancelled() &&
       (needs.changes.outputs.core == 'true' || needs.changes.outputs.e2e-uptime-kuma == 'true')
-    runs-on: ubuntu-22.04
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-      - name: Install dependencies
-        run: npm ci && npx playwright install --with-deps
-      - name: Install Dokku
-        run: |
-          wget -NP . https://packagecloud.io/dokku/dokku/gpgkey
-          sudo apt-key add gpgkey
-          echo "deb https://packagecloud.io/dokku/dokku/ubuntu/ jammy main" | sudo tee /etc/apt/sources.list.d/dokku.list
-          sudo apt-get update
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y dokku
-          sudo dokku plugin:install-dependencies --core
-      - name: Install dokkufile plugin
-        run: |
-          sudo dokku plugin:install https://github.com/deanmarano/dokkufile.git dokkufile || true
-      - name: Install library plugin
-        run: |
-          sudo mkdir -p /var/lib/dokku/plugins/available/library/subcommands
-          sudo mkdir -p /var/lib/dokku/plugins/available/library/library
-          sudo cp commands config functions install plugin.toml /var/lib/dokku/plugins/available/library/
-          sudo cp subcommands/* /var/lib/dokku/plugins/available/library/subcommands/
-          sudo cp -r library/* /var/lib/dokku/plugins/available/library/library/
-          sudo chmod +x /var/lib/dokku/plugins/available/library/commands
-          sudo chmod +x /var/lib/dokku/plugins/available/library/subcommands/*
-          sudo dokku plugin:enable library || true
-          sudo bash /var/lib/dokku/plugins/enabled/library/install
-          sudo dokku library:list
-      - name: Deploy uptime-kuma via bash
-        run: |
-          echo "127.0.0.1 test-uptime-kuma.test.local" | sudo tee -a /etc/hosts
-          sudo dokku library:checkout uptime-kuma \
-            --name=test-uptime-kuma \
-            --domain=test-uptime-kuma.test.local \
-            --no-ssl --no-auth --non-interactive
-      - name: Verify deployment state
-        run: |
-          echo "=== App exists? ==="
-          sudo dokku apps:exists test-uptime-kuma && echo "YES" || echo "NO"
-          echo "=== ps:report ==="
-          sudo dokku ps:report test-uptime-kuma 2>&1 || true
-          echo "=== Library state ==="
-          ls -laR /var/lib/dokku/services/library/apps/test-uptime-kuma/ 2>&1 || echo "STATE DIR MISSING"
-          echo "=== Storage ==="
-          sudo dokku storage:report test-uptime-kuma 2>&1 || true
-      - name: Run uptime-kuma e2e tests
-        run: npx playwright test tests/e2e/uptime-kuma.spec.ts --project=integration
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: e2e-uptime-kuma-results
-          path: playwright-report/
-      - name: Collect logs on failure
-        if: failure()
-        run: |
-          echo "=== Dokku apps ==="
-          sudo dokku apps:list 2>/dev/null || true
-          echo "=== ps:report ==="
-          sudo dokku ps:report 2>/dev/null || true
-          echo "=== Docker containers ==="
-          sudo docker ps -a 2>/dev/null || true
-          echo "=== Docker logs ==="
-          for container in $(sudo docker ps -aq 2>/dev/null); do
-            echo "--- Container $container ---"
-            sudo docker logs --tail 50 "$container" 2>/dev/null || true
-          done
-          echo "=== Library state ==="
-          ls -laR /var/lib/dokku/services/library/apps/ 2>&1 || echo "No state dir"
+    uses: ./.github/workflows/e2e-app.yml
+    with:
+      app-name: test-uptime-kuma
+      manifest: uptime-kuma
+      test-spec: tests/e2e/uptime-kuma.spec.ts
 
   e2e-mealie:
     needs: [changes, lint, unit-tests]
     if: |
       !failure() && !cancelled() &&
       (needs.changes.outputs.core == 'true' || needs.changes.outputs.e2e-mealie == 'true')
-    runs-on: ubuntu-22.04
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-      - name: Install dependencies
-        run: npm ci && npx playwright install --with-deps
-      - name: Install Dokku
-        run: |
-          wget -NP . https://packagecloud.io/dokku/dokku/gpgkey
-          sudo apt-key add gpgkey
-          echo "deb https://packagecloud.io/dokku/dokku/ubuntu/ jammy main" | sudo tee /etc/apt/sources.list.d/dokku.list
-          sudo apt-get update
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y dokku
-          sudo dokku plugin:install-dependencies --core
-      - name: Install dokku-postgres
-        run: sudo dokku plugin:install https://github.com/dokku/dokku-postgres.git postgres
-      - name: Install dokkufile plugin
-        run: |
-          sudo dokku plugin:install https://github.com/deanmarano/dokkufile.git dokkufile || true
-      - name: Install library plugin
-        run: |
-          sudo mkdir -p /var/lib/dokku/plugins/available/library/subcommands
-          sudo mkdir -p /var/lib/dokku/plugins/available/library/library
-          sudo cp commands config functions install plugin.toml /var/lib/dokku/plugins/available/library/
-          sudo cp subcommands/* /var/lib/dokku/plugins/available/library/subcommands/
-          sudo cp -r library/* /var/lib/dokku/plugins/available/library/library/
-          sudo chmod +x /var/lib/dokku/plugins/available/library/commands
-          sudo chmod +x /var/lib/dokku/plugins/available/library/subcommands/*
-          sudo dokku plugin:enable library || true
-          sudo bash /var/lib/dokku/plugins/enabled/library/install
-          sudo dokku library:list
-      - name: Deploy mealie via bash
-        run: |
-          echo "127.0.0.1 test-mealie.test.local" | sudo tee -a /etc/hosts
-          sudo dokku library:checkout mealie \
-            --name=test-mealie \
-            --domain=test-mealie.test.local \
-            --no-ssl --no-auth --non-interactive
-      - name: Verify deployment state
-        run: |
-          echo "=== App exists? ==="
-          sudo dokku apps:exists test-mealie && echo "YES" || echo "NO"
-          echo "=== ps:report ==="
-          sudo dokku ps:report test-mealie 2>&1 || true
-          echo "=== Library state ==="
-          ls -laR /var/lib/dokku/services/library/apps/test-mealie/ 2>&1 || echo "STATE DIR MISSING"
-          echo "=== Config ==="
-          sudo dokku config:show test-mealie 2>&1 || true
-          echo "=== Storage ==="
-          sudo dokku storage:report test-mealie 2>&1 || true
-          echo "=== PostgreSQL ==="
-          sudo dokku postgres:exists test-mealie-db && echo "DB EXISTS" || echo "DB MISSING"
-          sudo dokku postgres:linked test-mealie-db test-mealie && echo "DB LINKED" || echo "DB NOT LINKED"
-      - name: Run mealie e2e tests
-        run: npx playwright test tests/e2e/mealie.spec.ts --project=integration
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: e2e-mealie-results
-          path: playwright-report/
-      - name: Collect logs on failure
-        if: failure()
-        run: |
-          echo "=== Dokku apps ==="
-          sudo dokku apps:list 2>/dev/null || true
-          echo "=== ps:report ==="
-          sudo dokku ps:report 2>/dev/null || true
-          echo "=== Docker containers ==="
-          sudo docker ps -a 2>/dev/null || true
-          echo "=== Docker logs ==="
-          for container in $(sudo docker ps -aq 2>/dev/null); do
-            echo "--- Container $container ---"
-            sudo docker logs --tail 50 "$container" 2>/dev/null || true
-          done
-          echo "=== Library state ==="
-          ls -laR /var/lib/dokku/services/library/apps/ 2>&1 || echo "No state dir"
-          echo "=== PostgreSQL info ==="
-          sudo dokku postgres:info test-mealie-db 2>&1 || true
+    uses: ./.github/workflows/e2e-app.yml
+    with:
+      app-name: test-mealie
+      manifest: mealie
+      test-spec: tests/e2e/mealie.spec.ts
+      dokku-plugins: postgres
 
   e2e-paperless-ngx:
     needs: [changes, lint, unit-tests]
     if: |
       !failure() && !cancelled() &&
       (needs.changes.outputs.core == 'true' || needs.changes.outputs.e2e-paperless-ngx == 'true')
-    runs-on: ubuntu-22.04
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-      - name: Install dependencies
-        run: npm ci && npx playwright install --with-deps
-      - name: Install Dokku
-        run: |
-          wget -NP . https://packagecloud.io/dokku/dokku/gpgkey
-          sudo apt-key add gpgkey
-          echo "deb https://packagecloud.io/dokku/dokku/ubuntu/ jammy main" | sudo tee /etc/apt/sources.list.d/dokku.list
-          sudo apt-get update
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y dokku
-          sudo dokku plugin:install-dependencies --core
-      - name: Install dokku-postgres
-        run: sudo dokku plugin:install https://github.com/dokku/dokku-postgres.git postgres
-      - name: Install dokku-redis
-        run: sudo dokku plugin:install https://github.com/dokku/dokku-redis.git redis
-      - name: Install dokkufile plugin
-        run: |
-          sudo dokku plugin:install https://github.com/deanmarano/dokkufile.git dokkufile || true
-      - name: Install library plugin
-        run: |
-          sudo mkdir -p /var/lib/dokku/plugins/available/library/subcommands
-          sudo mkdir -p /var/lib/dokku/plugins/available/library/library
-          sudo cp commands config functions install plugin.toml /var/lib/dokku/plugins/available/library/
-          sudo cp subcommands/* /var/lib/dokku/plugins/available/library/subcommands/
-          sudo cp -r library/* /var/lib/dokku/plugins/available/library/library/
-          sudo chmod +x /var/lib/dokku/plugins/available/library/commands
-          sudo chmod +x /var/lib/dokku/plugins/available/library/subcommands/*
-          sudo dokku plugin:enable library || true
-          sudo bash /var/lib/dokku/plugins/enabled/library/install
-          sudo dokku library:list
-      - name: Deploy paperless-ngx via bash
-        run: |
-          echo "127.0.0.1 test-paperless.test.local" | sudo tee -a /etc/hosts
-          sudo dokku library:checkout paperless-ngx \
-            --name=test-paperless \
-            --domain=test-paperless.test.local \
-            --no-ssl --no-auth --non-interactive
-      - name: Verify deployment state
-        run: |
-          echo "=== App exists? ==="
-          sudo dokku apps:exists test-paperless && echo "YES" || echo "NO"
-          echo "=== ps:report ==="
-          sudo dokku ps:report test-paperless 2>&1 || true
-          echo "=== Library state ==="
-          ls -laR /var/lib/dokku/services/library/apps/test-paperless/ 2>&1 || echo "STATE DIR MISSING"
-          echo "=== Config ==="
-          sudo dokku config:show test-paperless 2>&1 || true
-          echo "=== Storage ==="
-          sudo dokku storage:report test-paperless 2>&1 || true
-          echo "=== PostgreSQL ==="
-          sudo dokku postgres:exists test-paperless-db && echo "DB EXISTS" || echo "DB MISSING"
-          sudo dokku postgres:linked test-paperless-db test-paperless && echo "DB LINKED" || echo "DB NOT LINKED"
-          echo "=== Redis ==="
-          sudo dokku redis:exists test-paperless-redis && echo "REDIS EXISTS" || echo "REDIS MISSING"
-          sudo dokku redis:linked test-paperless-redis test-paperless && echo "REDIS LINKED" || echo "REDIS NOT LINKED"
-      - name: Run paperless-ngx e2e tests
-        run: npx playwright test tests/e2e/paperless-ngx.spec.ts --project=integration
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: e2e-paperless-ngx-results
-          path: playwright-report/
-      - name: Collect logs on failure
-        if: failure()
-        run: |
-          echo "=== Dokku apps ==="
-          sudo dokku apps:list 2>/dev/null || true
-          echo "=== ps:report ==="
-          sudo dokku ps:report 2>/dev/null || true
-          echo "=== Docker containers ==="
-          sudo docker ps -a 2>/dev/null || true
-          echo "=== Docker logs ==="
-          for container in $(sudo docker ps -aq 2>/dev/null); do
-            echo "--- Container $container ---"
-            sudo docker logs --tail 50 "$container" 2>/dev/null || true
-          done
-          echo "=== Library state ==="
-          ls -laR /var/lib/dokku/services/library/apps/ 2>&1 || echo "No state dir"
-          echo "=== PostgreSQL info ==="
-          sudo dokku postgres:info test-paperless-db 2>&1 || true
-          echo "=== Redis info ==="
-          sudo dokku redis:info test-paperless-redis 2>&1 || true
+    uses: ./.github/workflows/e2e-app.yml
+    with:
+      app-name: test-paperless
+      manifest: paperless-ngx
+      test-spec: tests/e2e/paperless-ngx.spec.ts
+      dokku-plugins: postgres redis
 
   e2e-outline:
     needs: [changes, lint, unit-tests]
     if: |
       !failure() && !cancelled() &&
       (needs.changes.outputs.core == 'true' || needs.changes.outputs.e2e-outline == 'true')
-    runs-on: ubuntu-22.04
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-      - name: Install dependencies
-        run: npm ci && npx playwright install --with-deps
-      - name: Install Dokku
-        run: |
-          wget -NP . https://packagecloud.io/dokku/dokku/gpgkey
-          sudo apt-key add gpgkey
-          echo "deb https://packagecloud.io/dokku/dokku/ubuntu/ jammy main" | sudo tee /etc/apt/sources.list.d/dokku.list
-          sudo apt-get update
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y dokku
-          sudo dokku plugin:install-dependencies --core
-      - name: Install dokku-postgres
-        run: sudo dokku plugin:install https://github.com/dokku/dokku-postgres.git postgres
-      - name: Install dokku-redis
-        run: sudo dokku plugin:install https://github.com/dokku/dokku-redis.git redis
-      - name: Install dokkufile plugin
-        run: |
-          sudo dokku plugin:install https://github.com/deanmarano/dokkufile.git dokkufile || true
-      - name: Install library plugin
-        run: |
-          sudo mkdir -p /var/lib/dokku/plugins/available/library/subcommands
-          sudo mkdir -p /var/lib/dokku/plugins/available/library/library
-          sudo cp commands config functions install plugin.toml /var/lib/dokku/plugins/available/library/
-          sudo cp subcommands/* /var/lib/dokku/plugins/available/library/subcommands/
-          sudo cp -r library/* /var/lib/dokku/plugins/available/library/library/
-          sudo chmod +x /var/lib/dokku/plugins/available/library/commands
-          sudo chmod +x /var/lib/dokku/plugins/available/library/subcommands/*
-          sudo dokku plugin:enable library || true
-          sudo bash /var/lib/dokku/plugins/enabled/library/install
-          sudo dokku library:list
-      - name: Deploy outline via bash
-        run: |
-          echo "127.0.0.1 test-outline.test.local" | sudo tee -a /etc/hosts
-          sudo dokku library:checkout outline \
-            --name=test-outline \
-            --domain=test-outline.test.local \
-            --no-ssl --no-auth --non-interactive
-      - name: Verify deployment state
-        run: |
-          echo "=== App exists? ==="
-          sudo dokku apps:exists test-outline && echo "YES" || echo "NO"
-          echo "=== ps:report ==="
-          sudo dokku ps:report test-outline 2>&1 || true
-          echo "=== Library state ==="
-          ls -laR /var/lib/dokku/services/library/apps/test-outline/ 2>&1 || echo "STATE DIR MISSING"
-          echo "=== Config ==="
-          sudo dokku config:show test-outline 2>&1 || true
-          echo "=== Storage ==="
-          sudo dokku storage:report test-outline 2>&1 || true
-          echo "=== PostgreSQL ==="
-          sudo dokku postgres:exists test-outline-db && echo "DB EXISTS" || echo "DB MISSING"
-          sudo dokku postgres:linked test-outline-db test-outline && echo "DB LINKED" || echo "DB NOT LINKED"
-          echo "=== Redis ==="
-          sudo dokku redis:exists test-outline-redis && echo "REDIS EXISTS" || echo "REDIS MISSING"
-          sudo dokku redis:linked test-outline-redis test-outline && echo "REDIS LINKED" || echo "REDIS NOT LINKED"
-      - name: Run outline e2e tests
-        run: npx playwright test tests/e2e/outline.spec.ts --project=integration
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: e2e-outline-results
-          path: playwright-report/
-      - name: Collect logs on failure
-        if: failure()
-        run: |
-          echo "=== Dokku apps ==="
-          sudo dokku apps:list 2>/dev/null || true
-          echo "=== ps:report ==="
-          sudo dokku ps:report 2>/dev/null || true
-          echo "=== Docker containers ==="
-          sudo docker ps -a 2>/dev/null || true
-          echo "=== Docker logs ==="
-          for container in $(sudo docker ps -aq 2>/dev/null); do
-            echo "--- Container $container ---"
-            sudo docker logs --tail 50 "$container" 2>/dev/null || true
-          done
-          echo "=== Library state ==="
-          ls -laR /var/lib/dokku/services/library/apps/ 2>&1 || echo "No state dir"
-          echo "=== PostgreSQL info ==="
-          sudo dokku postgres:info test-outline-db 2>&1 || true
-          echo "=== Redis info ==="
-          sudo dokku redis:info test-outline-redis 2>&1 || true
+    uses: ./.github/workflows/e2e-app.yml
+    with:
+      app-name: test-outline
+      manifest: outline
+      test-spec: tests/e2e/outline.spec.ts
+      dokku-plugins: postgres redis
 
   e2e-gitea:
     needs: [changes, lint, unit-tests]
     if: |
       !failure() && !cancelled() &&
       (needs.changes.outputs.core == 'true' || needs.changes.outputs.e2e-gitea == 'true')
-    runs-on: ubuntu-22.04
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-      - name: Install dependencies
-        run: npm ci && npx playwright install --with-deps
-      - name: Install Dokku
-        run: |
-          wget -NP . https://packagecloud.io/dokku/dokku/gpgkey
-          sudo apt-key add gpgkey
-          echo "deb https://packagecloud.io/dokku/dokku/ubuntu/ jammy main" | sudo tee /etc/apt/sources.list.d/dokku.list
-          sudo apt-get update
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y dokku
-          sudo dokku plugin:install-dependencies --core
-      - name: Install dokku-postgres
-        run: sudo dokku plugin:install https://github.com/dokku/dokku-postgres.git postgres
-      - name: Install dokkufile plugin
-        run: |
-          sudo dokku plugin:install https://github.com/deanmarano/dokkufile.git dokkufile || true
-      - name: Install library plugin
-        run: |
-          sudo mkdir -p /var/lib/dokku/plugins/available/library/subcommands
-          sudo mkdir -p /var/lib/dokku/plugins/available/library/library
-          sudo cp commands config functions install plugin.toml /var/lib/dokku/plugins/available/library/
-          sudo cp subcommands/* /var/lib/dokku/plugins/available/library/subcommands/
-          sudo cp -r library/* /var/lib/dokku/plugins/available/library/library/
-          sudo chmod +x /var/lib/dokku/plugins/available/library/commands
-          sudo chmod +x /var/lib/dokku/plugins/available/library/subcommands/*
-          sudo dokku plugin:enable library || true
-          sudo bash /var/lib/dokku/plugins/enabled/library/install
-          sudo dokku library:list
-      - name: Deploy gitea via bash
-        run: |
-          echo "127.0.0.1 test-gitea.test.local" | sudo tee -a /etc/hosts
-          sudo dokku library:checkout gitea \
-            --name=test-gitea \
-            --domain=test-gitea.test.local \
-            --no-ssl --no-auth --non-interactive
-      - name: Verify deployment state
-        run: |
-          echo "=== App exists? ==="
-          sudo dokku apps:exists test-gitea && echo "YES" || echo "NO"
-          echo "=== ps:report ==="
-          sudo dokku ps:report test-gitea 2>&1 || true
-          echo "=== Library state ==="
-          ls -laR /var/lib/dokku/services/library/apps/test-gitea/ 2>&1 || echo "STATE DIR MISSING"
-          echo "=== Config ==="
-          sudo dokku config:show test-gitea 2>&1 || true
-          echo "=== Storage ==="
-          sudo dokku storage:report test-gitea 2>&1 || true
-          echo "=== PostgreSQL ==="
-          sudo dokku postgres:exists test-gitea-db && echo "DB EXISTS" || echo "DB MISSING"
-          sudo dokku postgres:linked test-gitea-db test-gitea && echo "DB LINKED" || echo "DB NOT LINKED"
-      - name: Run gitea e2e tests
-        run: npx playwright test tests/e2e/gitea.spec.ts --project=integration
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: e2e-gitea-results
-          path: playwright-report/
-      - name: Collect logs on failure
-        if: failure()
-        run: |
-          echo "=== Dokku apps ==="
-          sudo dokku apps:list 2>/dev/null || true
-          echo "=== ps:report ==="
-          sudo dokku ps:report 2>/dev/null || true
-          echo "=== Docker containers ==="
-          sudo docker ps -a 2>/dev/null || true
-          echo "=== Docker logs ==="
-          for container in $(sudo docker ps -aq 2>/dev/null); do
-            echo "--- Container $container ---"
-            sudo docker logs --tail 50 "$container" 2>/dev/null || true
-          done
-          echo "=== Library state ==="
-          ls -laR /var/lib/dokku/services/library/apps/ 2>&1 || echo "No state dir"
-          echo "=== PostgreSQL info ==="
-          sudo dokku postgres:info test-gitea-db 2>&1 || true
+    uses: ./.github/workflows/e2e-app.yml
+    with:
+      app-name: test-gitea
+      manifest: gitea
+      test-spec: tests/e2e/gitea.spec.ts
+      dokku-plugins: postgres
 
   e2e-bookstack:
     needs: [changes, lint, unit-tests]
     if: |
       !failure() && !cancelled() &&
       (needs.changes.outputs.core == 'true' || needs.changes.outputs.e2e-bookstack == 'true')
-    runs-on: ubuntu-22.04
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-      - name: Install dependencies
-        run: npm ci && npx playwright install --with-deps
-      - name: Install Dokku
-        run: |
-          wget -NP . https://packagecloud.io/dokku/dokku/gpgkey
-          sudo apt-key add gpgkey
-          echo "deb https://packagecloud.io/dokku/dokku/ubuntu/ jammy main" | sudo tee /etc/apt/sources.list.d/dokku.list
-          sudo apt-get update
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y dokku
-          sudo dokku plugin:install-dependencies --core
-      - name: Install dokku-mariadb
-        run: sudo dokku plugin:install https://github.com/dokku/dokku-mariadb.git mariadb
-      - name: Install dokkufile plugin
-        run: |
-          sudo dokku plugin:install https://github.com/deanmarano/dokkufile.git dokkufile || true
-      - name: Install library plugin
-        run: |
-          sudo mkdir -p /var/lib/dokku/plugins/available/library/subcommands
-          sudo mkdir -p /var/lib/dokku/plugins/available/library/library
-          sudo cp commands config functions install plugin.toml /var/lib/dokku/plugins/available/library/
-          sudo cp subcommands/* /var/lib/dokku/plugins/available/library/subcommands/
-          sudo cp -r library/* /var/lib/dokku/plugins/available/library/library/
-          sudo chmod +x /var/lib/dokku/plugins/available/library/commands
-          sudo chmod +x /var/lib/dokku/plugins/available/library/subcommands/*
-          sudo dokku plugin:enable library || true
-          sudo bash /var/lib/dokku/plugins/enabled/library/install
-          sudo dokku library:list
-      - name: Deploy bookstack via bash
-        run: |
-          echo "127.0.0.1 test-bookstack.test.local" | sudo tee -a /etc/hosts
-          sudo dokku library:checkout bookstack \
-            --name=test-bookstack \
-            --domain=test-bookstack.test.local \
-            --no-ssl --no-auth --no-mail --non-interactive
-      - name: Verify deployment state
-        run: |
-          echo "=== App exists? ==="
-          sudo dokku apps:exists test-bookstack && echo "YES" || echo "NO"
-          echo "=== ps:report ==="
-          sudo dokku ps:report test-bookstack 2>&1 || true
-          echo "=== Library state ==="
-          ls -laR /var/lib/dokku/services/library/apps/test-bookstack/ 2>&1 || echo "STATE DIR MISSING"
-          echo "=== Config ==="
-          sudo dokku config:show test-bookstack 2>&1 || true
-          echo "=== Storage ==="
-          sudo dokku storage:report test-bookstack 2>&1 || true
-          echo "=== MariaDB ==="
-          sudo dokku mariadb:exists test-bookstack-db && echo "DB EXISTS" || echo "DB MISSING"
-          sudo dokku mariadb:linked test-bookstack-db test-bookstack && echo "DB LINKED" || echo "DB NOT LINKED"
-          echo "=== Bookstack container logs ==="
-          BOOKSTACK_CID=$(sudo docker ps -q --filter "name=test-bookstack.web" 2>/dev/null || true)
-          if [ -n "$BOOKSTACK_CID" ]; then
-            sudo docker logs "$BOOKSTACK_CID" 2>&1 | tail -50
-          else
-            echo "No bookstack container found"
-            sudo docker ps -a 2>/dev/null || true
-          fi
-      - name: Run bookstack e2e tests
-        run: npx playwright test tests/e2e/bookstack.spec.ts --project=integration
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: e2e-bookstack-results
-          path: playwright-report/
-      - name: Collect logs on failure
-        if: failure()
-        run: |
-          echo "=== Dokku apps ==="
-          sudo dokku apps:list 2>/dev/null || true
-          echo "=== ps:report ==="
-          sudo dokku ps:report 2>/dev/null || true
-          echo "=== Docker containers ==="
-          sudo docker ps -a 2>/dev/null || true
-          echo "=== Docker logs ==="
-          for container in $(sudo docker ps -aq 2>/dev/null); do
-            echo "--- Container $container ---"
-            sudo docker logs --tail 50 "$container" 2>/dev/null || true
-          done
-          echo "=== Library state ==="
-          ls -laR /var/lib/dokku/services/library/apps/ 2>&1 || echo "No state dir"
-          echo "=== MariaDB info ==="
-          sudo dokku mariadb:info test-bookstack-db 2>&1 || true
+    uses: ./.github/workflows/e2e-app.yml
+    with:
+      app-name: test-bookstack
+      manifest: bookstack
+      test-spec: tests/e2e/bookstack.spec.ts
+      dokku-plugins: mariadb
+      extra-deploy-flags: "--no-mail"

@@ -114,6 +114,7 @@ fi
 
 # Write resolved YAML to temp file
 tmpfile="$(mktemp /tmp/dokkufile-XXXXXX.yml)"
+trap 'rm -f "$tmpfile"' EXIT
 echo "$resolved_yaml" >"$tmpfile"
 
 # Check if connection_env post-processing will be needed.
@@ -130,9 +131,6 @@ if [[ -n "$has_connection_env" ]]; then
 else
   dokku_cmd dokkufile:apply -f "$tmpfile"
 fi
-
-# Clean up temp file
-rm -f "$tmpfile"
 
 # Post-processing: connection_env
 echo "-----> Post-processing"
