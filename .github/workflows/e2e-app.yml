@@ -20,6 +20,9 @@ on:
         required: false
         type: string
         default: ""
+      artifact-name:
+        required: true
+        type: string
 
 jobs:
   test:
@@ -87,7 +90,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: ${{ inputs.app-name }}-results
+          name: ${{ inputs.artifact-name }}-results
           path: playwright-report/
       - name: Collect logs on failure
         if: failure()

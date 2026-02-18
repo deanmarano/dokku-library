@@ -157,6 +157,7 @@ jobs:
       manifest: uptime-kuma
       test-spec: tests/e2e/checkout.spec.ts
       dokku-plugins: postgres
+      artifact-name: e2e-checkout
 
   e2e-lifecycle:
     needs: [changes, lint, unit-tests]
@@ -169,6 +170,7 @@ jobs:
       manifest: uptime-kuma
       test-spec: tests/e2e/lifecycle.spec.ts
       dokku-plugins: postgres
+      artifact-name: e2e-lifecycle
 
   e2e-doctor:
     needs: [changes, lint, unit-tests]
@@ -181,6 +183,7 @@ jobs:
       manifest: uptime-kuma
       test-spec: tests/e2e/doctor.spec.ts
       dokku-plugins: postgres
+      artifact-name: e2e-doctor
 
   e2e-ghost:
     needs: [changes, lint, unit-tests]
@@ -194,6 +197,7 @@ jobs:
       test-spec: tests/e2e/ghost.spec.ts
       dokku-plugins: mariadb
       extra-deploy-flags: "--no-mail"
+      artifact-name: e2e-ghost
 
   e2e-linkding:
     needs: [changes, lint, unit-tests]
@@ -206,6 +210,7 @@ jobs:
       manifest: linkding
       test-spec: tests/e2e/linkding.spec.ts
       dokku-plugins: postgres
+      artifact-name: e2e-linkding
 
   e2e-miniflux:
     needs: [changes, lint, unit-tests]
@@ -218,6 +223,7 @@ jobs:
       manifest: miniflux
       test-spec: tests/e2e/miniflux.spec.ts
       dokku-plugins: postgres
+      artifact-name: e2e-miniflux
 
   e2e-vaultwarden:
     needs: [changes, lint, unit-tests]
@@ -230,6 +236,7 @@ jobs:
       manifest: vaultwarden
       test-spec: tests/e2e/vaultwarden.spec.ts
       dokku-plugins: postgres
+      artifact-name: e2e-vaultwarden
 
   e2e-grafana:
     needs: [changes, lint, unit-tests]
@@ -242,6 +249,7 @@ jobs:
       manifest: grafana
       test-spec: tests/e2e/grafana.spec.ts
       dokku-plugins: postgres
+      artifact-name: e2e-grafana
 
   e2e-radarr:
     needs: [changes, lint, unit-tests]
@@ -253,6 +261,7 @@ jobs:
       app-name: test-radarr
       manifest: radarr
       test-spec: tests/e2e/radarr.spec.ts
+      artifact-name: e2e-radarr
 
   e2e-sonarr:
     needs: [changes, lint, unit-tests]
@@ -264,6 +273,7 @@ jobs:
       app-name: test-sonarr
       manifest: sonarr
       test-spec: tests/e2e/sonarr.spec.ts
+      artifact-name: e2e-sonarr
 
   e2e-jellyfin:
     needs: [changes, lint, unit-tests]
@@ -275,6 +285,7 @@ jobs:
       app-name: test-jellyfin
       manifest: jellyfin
       test-spec: tests/e2e/jellyfin.spec.ts
+      artifact-name: e2e-jellyfin
 
   e2e-uptime-kuma:
     needs: [changes, lint, unit-tests]
@@ -286,6 +297,7 @@ jobs:
       app-name: test-uptime-kuma
       manifest: uptime-kuma
       test-spec: tests/e2e/uptime-kuma.spec.ts
+      artifact-name: e2e-uptime-kuma
 
   e2e-mealie:
     needs: [changes, lint, unit-tests]
@@ -298,6 +310,7 @@ jobs:
       manifest: mealie
       test-spec: tests/e2e/mealie.spec.ts
       dokku-plugins: postgres
+      artifact-name: e2e-mealie
 
   e2e-paperless-ngx:
     needs: [changes, lint, unit-tests]
@@ -310,6 +323,7 @@ jobs:
       manifest: paperless-ngx
       test-spec: tests/e2e/paperless-ngx.spec.ts
       dokku-plugins: postgres redis
+      artifact-name: e2e-paperless-ngx
 
   e2e-outline:
     needs: [changes, lint, unit-tests]
@@ -322,6 +336,7 @@ jobs:
       manifest: outline
       test-spec: tests/e2e/outline.spec.ts
       dokku-plugins: postgres redis
+      artifact-name: e2e-outline
 
   e2e-gitea:
     needs: [changes, lint, unit-tests]
@@ -334,6 +349,7 @@ jobs:
       manifest: gitea
       test-spec: tests/e2e/gitea.spec.ts
       dokku-plugins: postgres
+      artifact-name: e2e-gitea
 
   e2e-bookstack:
     needs: [changes, lint, unit-tests]
@@ -347,3 +363,4 @@ jobs:
       test-spec: tests/e2e/bookstack.spec.ts
       dokku-plugins: mariadb
       extra-deploy-flags: "--no-mail"
+      artifact-name: e2e-bookstack
