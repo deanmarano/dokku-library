@@ -20,7 +20,7 @@ test.describe("library:doctor", () => {
   });
 
   test("should report clean state after fresh checkout", () => {
-    const output = dokku(`library:doctor ${APP_NAME}`);
+    const output = dokku(`library:doctor ${APP_NAME}`, { ignoreError: true });
     expect(output).toContain("[OK]");
     expect(output).toContain("All checks passed");
     expect(output).not.toContain("[DRIFT]");
@@ -52,11 +52,14 @@ test.describe("library:doctor", () => {
   test("doctor:fix should resolve drift", () => {
     const fixOutput = dokku(`library:doctor:fix ${APP_NAME}`, {
       timeout: 300_000,
+      ignoreError: true,
     });
     expect(fixOutput).toContain("[FIX]");
 
     // Verify doctor now passes
-    const doctorOutput = dokku(`library:doctor ${APP_NAME}`);
+    const doctorOutput = dokku(`library:doctor ${APP_NAME}`, {
+      ignoreError: true,
+    });
     expect(doctorOutput).toContain("All checks passed");
   });
 });

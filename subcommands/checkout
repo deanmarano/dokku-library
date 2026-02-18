@@ -123,9 +123,10 @@ has_connection_env="$(get_manifest_field "$manifest" '.library.connection_env.mo
 
 # Run dokkufile apply
 echo "-----> Applying dokkufile"
+apply_failed=false
 if [[ -n "$has_connection_env" ]]; then
   # Deploy may fail healthchecks — connection env vars are set post-apply
-  dokku_cmd dokkufile:apply -f "$tmpfile" || echo "       Initial deploy expected to need rebuild after connection_env setup"
+  dokku_cmd dokkufile:apply -f "$tmpfile" || apply_failed=true
 else
   dokku_cmd dokkufile:apply -f "$tmpfile"
 fi
@@ -137,10 +138,19 @@ rm -f "$tmpfile"
 echo "-----> Post-processing"
 post_process_connection_env "$app_name" "$manifest"
 
-# If connection_env was set, rebuild so the app picks up the new env vars
+# If connection_env was set, redeploy/restart to pick up the new env vars
 if [[ -n "$has_connection_env" ]]; then
-  echo "-----> Rebuilding $app_name with connection environment"
-  dokku_cmd ps:rebuild "$app_name"
+  if [[ "$apply_failed" == "true" ]]; then
+    # Initial deploy failed (healthcheck failed without connection env vars).
+    # ps:rebuild won't work because git:from-image didn't store a commit.
+    # Re-run git:from-image now that env vars are set.
+    echo "-----> Redeploying $app_name with connection environment"
+    dokku_cmd git:from-image "$app_name" "$image"
+  else
+    # Initial deploy succeeded. Just restart to pick up new env vars.
+    echo "-----> Restarting $app_name with connection environment"
+    dokku_cmd ps:restart "$app_name"
+  fi
 fi
 
 # Post-processing: mail
