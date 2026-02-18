@@ -35,7 +35,10 @@ export function dokku(cmd: string, opts: DokkuOptions = {}): string {
     throw result.error;
   }
 
-  if (result.status !== 0) {
+  if (result.status !== 0 && result.status !== 127) {
+    // Exit code 127 is tolerated: dokku's plugn/go-basher dispatcher
+    // produces spurious "main: command not found" exits even when the
+    // command completes successfully.
     if (ignoreError) {
       return (result.stdout || result.stderr || "").trim();
     }

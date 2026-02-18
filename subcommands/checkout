@@ -116,9 +116,19 @@ fi
 tmpfile="$(mktemp /tmp/dokkufile-XXXXXX.yml)"
 echo "$resolved_yaml" >"$tmpfile"
 
+# Check if connection_env post-processing will be needed.
+# If so, the initial deploy may fail healthchecks because the app starts
+# without its database/redis connection vars. We tolerate that and rebuild after.
+has_connection_env="$(get_manifest_field "$manifest" '.library.connection_env.mode // ""')"
+
 # Run dokkufile apply
 echo "-----> Applying dokkufile"
-dokku_cmd dokkufile:apply -f "$tmpfile"
+if [[ -n "$has_connection_env" ]]; then
+  # Deploy may fail healthchecks — connection env vars are set post-apply
+  dokku_cmd dokkufile:apply -f "$tmpfile" || echo "       Initial deploy expected to need rebuild after connection_env setup"
+else
+  dokku_cmd dokkufile:apply -f "$tmpfile"
+fi
 
 # Clean up temp file
 rm -f "$tmpfile"
@@ -126,6 +136,12 @@ rm -f "$tmpfile"
 # Post-processing: connection_env
 echo "-----> Post-processing"
 post_process_connection_env "$app_name" "$manifest"
+
+# If connection_env was set, rebuild so the app picks up the new env vars
+if [[ -n "$has_connection_env" ]]; then
+  echo "-----> Rebuilding $app_name with connection environment"
+  dokku_cmd ps:rebuild "$app_name"
+fi
 
 # Post-processing: mail
 mail_service_name=""

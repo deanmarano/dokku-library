@@ -131,7 +131,7 @@ parse_database_url_map() {
   if [[ "$url" =~ ^[a-z]+://([^:]+):([^@]+)@([^:/]+):([0-9]+)/([^?]+) ]]; then
     local map_env_args=""
     local env_var
-    for component in host port user password name; do
+    for component in host port user password name host_port; do
       env_var="$(echo "$map_yaml" | yq eval ".$component // \"\"" -)"
       if [[ -n "$env_var" ]]; then
         local val
@@ -141,6 +141,7 @@ parse_database_url_map() {
           host) val="${BASH_REMATCH[3]}" ;;
           port) val="${BASH_REMATCH[4]}" ;;
           name) val="${BASH_REMATCH[5]}" ;;
+          host_port) val="${BASH_REMATCH[3]}:${BASH_REMATCH[4]}" ;;
         esac
         map_env_args="$map_env_args $env_var=$val"
       fi
