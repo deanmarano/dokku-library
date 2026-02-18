@@ -40,8 +40,7 @@ if [[ -n "$saved_yaml" ]] && check_plugin_available "dokkufile"; then
   plan_output="$(dokku_cmd dokkufile:plan -f "$tmpfile" 2>&1 || true)"
   rm -f "$tmpfile"
 
-  # Filter out false-positive drift lines where both sides are empty ("" → "")
-  real_drift="$(echo "$plan_output" | grep -v 'No changes' | grep -v '"".*→.*""' | grep -E '^\s*[~+-]' || true)"
+  real_drift="$(echo "$plan_output" | grep -v 'No changes' | grep -E '^\s*[~+-]' || true)"
   if [[ -z "$real_drift" ]]; then
     echo "       [OK] Dokkufile state matches"
   else
