@@ -2,7 +2,6 @@
 set -eo pipefail
 # shellcheck source=config
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/config"
-# shellcheck source=functions
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/functions"
 
 # Skip command name when called via dokku subcommand auto-discovery
