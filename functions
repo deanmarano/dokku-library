@@ -74,7 +74,8 @@ resolve_domain() {
   local domain="$2"
   local hostname
 
-  hostname="$(hostname -f 2>/dev/null || hostname)"
+  hostname="$(dokku domains:report --global --domains-global-vhosts 2>/dev/null | xargs)"
+  hostname="${hostname:-$(hostname -f 2>/dev/null || hostname)}"
 
   domain="${domain//%HOSTNAME%/$hostname}"
   domain="${domain//%APP_NAME%/$app_name}"
