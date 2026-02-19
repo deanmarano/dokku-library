@@ -16,6 +16,7 @@ if [[ -z "$library_app" ]]; then
   echo "         --name=<name>         Custom app name (default: manifest name)" >&2
   echo "         --domain=<domain>     Custom domain" >&2
   echo "         --no-ssl              Skip letsencrypt" >&2
+  echo "         --no-dns              Skip DNS setup" >&2
   echo "         --no-mail             Skip mail setup" >&2
   echo "         --no-auth             Skip auth setup" >&2
   echo "         --auth-service=<name> Auth service to use" >&2
@@ -27,6 +28,7 @@ fi
 custom_domain=""
 custom_name=""
 no_ssl=false
+no_dns=false
 no_mail=false
 no_auth=false
 auth_service=""
@@ -37,6 +39,7 @@ for arg in "$@"; do
     --name=*) custom_name="${arg#--name=}" ;;
     --domain=*) custom_domain="${arg#--domain=}" ;;
     --no-ssl) no_ssl=true ;;
+    --no-dns) no_dns=true ;;
     --no-mail) no_mail=true ;;
     --no-auth) no_auth=true ;;
     --auth-service=*) auth_service="${arg#--auth-service=}" ;;
@@ -99,7 +102,7 @@ secret_base64="$(generate_secret_base64 32)"
 
 # Generate resolved dokkufile YAML
 echo "-----> Generating dokkufile"
-resolved_yaml="$(resolve_dokkufile_yaml "$manifest" "$app_name" "$manifest_app_name" "$domain" "$secret" "$secret_base64" "$no_ssl")"
+resolved_yaml="$(resolve_dokkufile_yaml "$manifest" "$app_name" "$manifest_app_name" "$domain" "$secret" "$secret_base64" "$no_ssl" "$no_dns")"
 
 # Create storage directories before dokkufile apply
 storage_count="$(echo "$resolved_yaml" | yq eval ".apps.\"$app_name\".storage | length" - 2>/dev/null || echo 0)"

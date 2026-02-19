@@ -185,6 +185,7 @@ resolve_dokkufile_yaml() {
   local secret="$5"
   local secret_base64="$6"
   local no_ssl="$7"
+  local no_dns="${8:-false}"
 
   local resolved
   # Start with the manifest, strip the library section, add version
@@ -217,6 +218,28 @@ resolve_dokkufile_yaml() {
   # If --no-ssl: remove letsencrypt field
   if [[ "$no_ssl" == "true" ]]; then
     resolved="$(echo "$resolved" | yq eval "del(.apps.\"$app_name\".letsencrypt)" -)"
+  fi
+
+  # If DNS plugin is available and --no-dns not set, add dns: true
+  if [[ "$no_dns" != "true" ]] && check_plugin_available "dokku-dns"; then
+    resolved="$(echo "$resolved" | yq eval ".apps.\"$app_name\".dns = true" -)"
+  fi
+
+  # If letsencrypt is enabled, inject global email as letsencrypt_email
+  local has_letsencrypt
+  has_letsencrypt="$(echo "$resolved" | yq eval ".apps.\"$app_name\".letsencrypt // false" -)"
+  if [[ "$has_letsencrypt" == "true" ]]; then
+    local global_le_email
+    global_le_email="$(dokku_cmd letsencrypt:set --global 2>/dev/null | grep -oP 'email:\s*\K.*' || true)"
+    if [[ -z "$global_le_email" ]]; then
+      global_le_email="$(dokku_cmd letsencrypt:report --global --letsencrypt-email 2>/dev/null | xargs || true)"
+    fi
+    if [[ -n "$global_le_email" ]]; then
+      resolved="$(echo "$resolved" | yq eval ".apps.\"$app_name\".letsencrypt_email = \"$global_le_email\"" -)"
+    else
+      echo "!     Warning: letsencrypt is enabled but no global email is configured." >&2
+      echo "       Set it with: dokku letsencrypt:set --global email your@email.com" >&2
+    fi
   fi
 
   # Replace template variables
