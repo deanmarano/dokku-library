@@ -1,0 +1,26 @@
+library:
+  description: Real-time infrastructure monitoring and troubleshooting
+  url: https://www.netdata.cloud
+  prompts:
+    - key: DOMAIN
+      question: Domain for Netdata
+      default: netdata.%HOSTNAME%
+
+apps:
+  netdata:
+    image: "netdata/netdata:stable"
+    domains: ["%DOMAIN%"]
+    env:
+      NETDATA_CLAIM_TOKEN: ""
+      NETDATA_CLAIM_URL: "https://app.netdata.cloud"
+    ports:
+      http: "80:19999"
+    storage:
+      - "/var/lib/dokku/data/storage/netdata-%APP_NAME%/config:/etc/netdata"
+      - "/var/lib/dokku/data/storage/netdata-%APP_NAME%/lib:/var/lib/netdata"
+      - "/var/lib/dokku/data/storage/netdata-%APP_NAME%/cache:/var/cache/netdata"
+    letsencrypt: true
+    healthchecks:
+      web:
+        - path: /
+          timeout: 60
