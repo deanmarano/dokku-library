@@ -14,7 +14,7 @@ Browse a curated library of self-hosted apps and deploy any of them with a singl
 ## Installation
 
 ```bash
-dokku plugin:install library https://github.com/deanmarano/dokku-library
+dokku plugin:install https://github.com/deanmarano/dokku-library.git library
 ```
 
 ## Quick Start
@@ -64,20 +64,25 @@ dokku library:checkout uptime-kuma --non-interactive
 
 | App | Database | Description |
 |---|---|---|
-| [Bookstack](https://www.bookstackapp.com/) | MariaDB | Documentation/wiki platform |
-| [Ghost](https://ghost.org/) | MariaDB | Professional publishing platform |
-| [Gitea](https://gitea.io/) | PostgreSQL | Lightweight Git hosting |
-| [Grafana](https://grafana.com/) | PostgreSQL | Observability dashboards |
-| [Jellyfin](https://jellyfin.org/) | -- | Media server |
-| [Linkding](https://github.com/sissbruecker/linkding) | PostgreSQL | Bookmark manager |
-| [Mealie](https://mealie.io/) | PostgreSQL | Recipe manager |
-| [Miniflux](https://miniflux.app/) | PostgreSQL | Minimalist RSS reader |
-| [Outline](https://www.getoutline.com/) | PostgreSQL + Redis | Team wiki/knowledge base |
-| [Paperless-ngx](https://docs.paperless-ngx.com/) | PostgreSQL + Redis | Document management |
-| [Radarr](https://radarr.video/) | -- | Movie collection manager |
-| [Sonarr](https://sonarr.tv/) | -- | TV series collection manager |
-| [Uptime Kuma](https://uptime.kuma.pet/) | -- | Uptime monitoring |
-| [Vaultwarden](https://github.com/dani-garcia/vaultwarden) | PostgreSQL | Bitwarden-compatible password manager |
+| [Bookstack](https://www.bookstackapp.com) | MariaDB | Simple and free wiki software |
+| [Ghost](https://ghost.org) | MariaDB | Professional publishing platform |
+| [Gitea](https://gitea.io) | PostgreSQL | Lightweight self-hosted Git service |
+| [Grafana](https://grafana.com) | PostgreSQL | Open-source monitoring and observability platform |
+| [Immich](https://immich.app) | PostgreSQL | Self-hosted photo and video management |
+| [Jellyfin](https://jellyfin.org) | -- | Free software media system |
+| [Linkding](https://github.com/sissbruecker/linkding) | PostgreSQL | Self-hosted bookmark manager |
+| [Mealie](https://mealie.io) | PostgreSQL | Self-hosted recipe manager and meal planner |
+| [Miniflux](https://miniflux.app) | PostgreSQL | Minimalist RSS reader |
+| [Netdata](https://www.netdata.cloud) | -- | Real-time infrastructure monitoring and troubleshooting |
+| [Nextcloud](https://nextcloud.com) | PostgreSQL | Self-hosted file sync and collaboration platform |
+| [Outline](https://www.getoutline.com) | PostgreSQL + Redis | Modern team wiki and knowledge base |
+| [Paperless-ngx](https://docs.paperless-ngx.com) | PostgreSQL + Redis | Document management system with OCR |
+| [Plausible](https://plausible.io) | PostgreSQL | Privacy-friendly web analytics |
+| [Radarr](https://radarr.video) | -- | Movie collection manager for Usenet and BitTorrent |
+| [Sonarr](https://sonarr.tv) | -- | TV series collection manager for Usenet and BitTorrent |
+| [Uptime Kuma](https://uptime.kuma.pet) | -- | Self-hosted uptime monitoring tool |
+| [Vaultwarden](https://github.com/dani-garcia/vaultwarden) | PostgreSQL | Lightweight Bitwarden-compatible password manager |
+| [Wallabag](https://wallabag.org) | PostgreSQL | Self-hosted read-it-later app |
 
 ## Manifest Format
 
