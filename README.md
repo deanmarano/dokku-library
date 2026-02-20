@@ -14,16 +14,7 @@ Browse a curated library of self-hosted apps and deploy any of them with a singl
 ## Installation
 
 ```bash
-# Copy plugin files into Dokku's plugin directory
-sudo mkdir -p /var/lib/dokku/plugins/available/library/subcommands
-sudo mkdir -p /var/lib/dokku/plugins/available/library/library
-sudo cp commands config functions install plugin.toml /var/lib/dokku/plugins/available/library/
-sudo cp subcommands/* /var/lib/dokku/plugins/available/library/subcommands/
-sudo cp -r library/* /var/lib/dokku/plugins/available/library/library/
-sudo chmod +x /var/lib/dokku/plugins/available/library/commands
-sudo chmod +x /var/lib/dokku/plugins/available/library/subcommands/*
-sudo dokku plugin:enable library
-sudo bash /var/lib/dokku/plugins/enabled/library/install
+dokku plugin:install library https://github.com/deanmarano/dokku-library
 ```
 
 ## Quick Start
@@ -33,7 +24,7 @@ sudo bash /var/lib/dokku/plugins/enabled/library/install
 dokku library:list
 
 # Deploy Ghost blog
-dokku library:checkout ghost
+dokku library:checkout ghost 
 
 # Deploy with custom name and domain
 dokku library:checkout ghost --name=my-blog --domain=blog.example.com
