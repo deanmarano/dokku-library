@@ -27,73 +27,74 @@ on:
 jobs:
   test:
     runs-on: ubuntu-22.04
-    container:
-      image: mcr.microsoft.com/playwright:v1.58.2-jammy
-      options: --privileged
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-      - name: Start Docker daemon
-        run: |
-          dockerd &
-          for i in $(seq 1 30); do
-            if docker info >/dev/null 2>&1; then
-              echo "Docker daemon ready"
-              break
-            fi
-            echo "Waiting for Docker daemon... ($i/30)"
-            sleep 1
-          done
-          docker info
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ hashFiles('package-lock.json') }}
       - name: Install dependencies
         run: npm ci
+      - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps
+      - name: Install Playwright system deps
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps
       - name: Install Dokku
         run: |
           wget -NP . https://packagecloud.io/dokku/dokku/gpgkey
-          apt-key add gpgkey
-          echo "deb https://packagecloud.io/dokku/dokku/ubuntu/ jammy main" | tee /etc/apt/sources.list.d/dokku.list
-          apt-get update
-          DEBIAN_FRONTEND=noninteractive apt-get install -y dokku
-          dokku plugin:install-dependencies --core
+          sudo apt-key add gpgkey
+          echo "deb https://packagecloud.io/dokku/dokku/ubuntu/ jammy main" | sudo tee /etc/apt/sources.list.d/dokku.list
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y dokku
+          sudo dokku plugin:install-dependencies --core
       - name: Install dokku plugins
         if: inputs.dokku-plugins != ''
         run: |
           for plugin in ${{ inputs.dokku-plugins }}; do
             echo "Installing dokku-${plugin}..."
-            dokku plugin:install "https://github.com/dokku/dokku-${plugin}.git" "$plugin"
+            sudo dokku plugin:install "https://github.com/dokku/dokku-${plugin}.git" "$plugin"
           done
       - name: Install dokkufile plugin
         run: |
-          dokku plugin:install https://github.com/deanmarano/dokkufile.git dokkufile || true
+          sudo dokku plugin:install https://github.com/deanmarano/dokkufile.git dokkufile || true
       - name: Install library plugin
         run: |
-          mkdir -p /var/lib/dokku/plugins/available/library/subcommands
-          mkdir -p /var/lib/dokku/plugins/available/library/library
-          cp commands config functions install plugin.toml /var/lib/dokku/plugins/available/library/
-          cp subcommands/* /var/lib/dokku/plugins/available/library/subcommands/
-          cp -r library/* /var/lib/dokku/plugins/available/library/library/
-          chmod +x /var/lib/dokku/plugins/available/library/commands
-          chmod +x /var/lib/dokku/plugins/available/library/subcommands/*
-          dokku plugin:enable library || true
-          bash /var/lib/dokku/plugins/enabled/library/install
-          dokku library:list
+          sudo mkdir -p /var/lib/dokku/plugins/available/library/subcommands
+          sudo mkdir -p /var/lib/dokku/plugins/available/library/library
+          sudo cp commands config functions install plugin.toml /var/lib/dokku/plugins/available/library/
+          sudo cp subcommands/* /var/lib/dokku/plugins/available/library/subcommands/
+          sudo cp -r library/* /var/lib/dokku/plugins/available/library/library/
+          sudo chmod +x /var/lib/dokku/plugins/available/library/commands
+          sudo chmod +x /var/lib/dokku/plugins/available/library/subcommands/*
+          sudo dokku plugin:enable library || true
+          sudo bash /var/lib/dokku/plugins/enabled/library/install
+          sudo dokku library:list
       - name: Deploy app via bash
         run: |
-          echo "127.0.0.1 ${{ inputs.app-name }}.test.local" | tee -a /etc/hosts
-          dokku library:checkout ${{ inputs.manifest }} \
+          echo "127.0.0.1 ${{ inputs.app-name }}.test.local" | sudo tee -a /etc/hosts
+          sudo dokku library:checkout ${{ inputs.manifest }} \
             --name=${{ inputs.app-name }} \
             --domain=${{ inputs.app-name }}.test.local \
             --no-ssl --no-auth --non-interactive ${{ inputs.extra-deploy-flags }}
       - name: Verify deployment state
         run: |
           echo "=== App exists? ==="
-          dokku apps:exists ${{ inputs.app-name }} && echo "YES" || echo "NO"
+          sudo dokku apps:exists ${{ inputs.app-name }} && echo "YES" || echo "NO"
           echo "=== ps:report ==="
-          dokku ps:report ${{ inputs.app-name }} 2>&1 || true
+          sudo dokku ps:report ${{ inputs.app-name }} 2>&1 || true
           echo "=== config:show ==="
-          dokku config:show ${{ inputs.app-name }} 2>&1 || true
+          sudo dokku config:show ${{ inputs.app-name }} 2>&1 || true
           echo "=== Docker containers ==="
-          docker ps -a 2>&1 || true
+          sudo docker ps -a 2>&1 || true
           echo "=== Library state ==="
           ls -laR /var/lib/dokku/services/library/apps/${{ inputs.app-name }}/ 2>&1 || echo "STATE DIR MISSING"
       - name: Run e2e tests
@@ -111,17 +112,17 @@ jobs:
           ls -la /var/lib/dokku/plugins/available/library/ || true
           ls -la /var/lib/dokku/plugins/enabled/library/ || true
           echo "=== library:list ==="
-          dokku library:list 2>&1 || true
+          sudo dokku library:list 2>&1 || true
           echo "=== Dokku apps ==="
-          dokku apps:list 2>/dev/null || true
+          sudo dokku apps:list 2>/dev/null || true
           echo "=== ps:report ==="
-          dokku ps:report 2>/dev/null || true
+          sudo dokku ps:report 2>/dev/null || true
           echo "=== Docker containers ==="
-          docker ps -a 2>/dev/null || true
+          sudo docker ps -a 2>/dev/null || true
           echo "=== Docker logs ==="
-          for container in $(docker ps -aq 2>/dev/null); do
+          for container in $(sudo docker ps -aq 2>/dev/null); do
             echo "--- Container $container ---"
-            docker logs --tail 50 "$container" 2>/dev/null || true
+            sudo docker logs --tail 50 "$container" 2>/dev/null || true
           done
           echo "=== Library state ==="
           ls -laR /var/lib/dokku/services/library/apps/ 2>&1 || echo "No state dir"
