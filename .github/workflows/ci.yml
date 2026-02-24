@@ -152,6 +152,7 @@ jobs:
       !failure() && !cancelled() &&
       (needs.changes.outputs.core == 'true' || needs.changes.outputs.e2e-checkout == 'true')
     uses: ./.github/workflows/e2e-app.yml
+    secrets: inherit
     with:
       app-name: test-uptime-kuma
       manifest: uptime-kuma
@@ -165,6 +166,7 @@ jobs:
       !failure() && !cancelled() &&
       (needs.changes.outputs.core == 'true' || needs.changes.outputs.e2e-lifecycle == 'true')
     uses: ./.github/workflows/e2e-app.yml
+    secrets: inherit
     with:
       app-name: test-lifecycle-app
       manifest: uptime-kuma
@@ -178,6 +180,7 @@ jobs:
       !failure() && !cancelled() &&
       (needs.changes.outputs.core == 'true' || needs.changes.outputs.e2e-doctor == 'true')
     uses: ./.github/workflows/e2e-app.yml
+    secrets: inherit
     with:
       app-name: test-doctor-app
       manifest: uptime-kuma
@@ -191,6 +194,7 @@ jobs:
       !failure() && !cancelled() &&
       (needs.changes.outputs.core == 'true' || needs.changes.outputs.e2e-ghost == 'true')
     uses: ./.github/workflows/e2e-app.yml
+    secrets: inherit
     with:
       app-name: test-ghost
       manifest: ghost
@@ -205,6 +209,7 @@ jobs:
       !failure() && !cancelled() &&
       (needs.changes.outputs.core == 'true' || needs.changes.outputs.e2e-linkding == 'true')
     uses: ./.github/workflows/e2e-app.yml
+    secrets: inherit
     with:
       app-name: test-linkding
       manifest: linkding
@@ -218,6 +223,7 @@ jobs:
       !failure() && !cancelled() &&
       (needs.changes.outputs.core == 'true' || needs.changes.outputs.e2e-miniflux == 'true')
     uses: ./.github/workflows/e2e-app.yml
+    secrets: inherit
     with:
       app-name: test-miniflux
       manifest: miniflux
@@ -231,6 +237,7 @@ jobs:
       !failure() && !cancelled() &&
       (needs.changes.outputs.core == 'true' || needs.changes.outputs.e2e-vaultwarden == 'true')
     uses: ./.github/workflows/e2e-app.yml
+    secrets: inherit
     with:
       app-name: test-vaultwarden
       manifest: vaultwarden
@@ -244,6 +251,7 @@ jobs:
       !failure() && !cancelled() &&
       (needs.changes.outputs.core == 'true' || needs.changes.outputs.e2e-grafana == 'true')
     uses: ./.github/workflows/e2e-app.yml
+    secrets: inherit
     with:
       app-name: test-grafana
       manifest: grafana
@@ -257,6 +265,7 @@ jobs:
       !failure() && !cancelled() &&
       (needs.changes.outputs.core == 'true' || needs.changes.outputs.e2e-radarr == 'true')
     uses: ./.github/workflows/e2e-app.yml
+    secrets: inherit
     with:
       app-name: test-radarr
       manifest: radarr
@@ -269,6 +278,7 @@ jobs:
       !failure() && !cancelled() &&
       (needs.changes.outputs.core == 'true' || needs.changes.outputs.e2e-sonarr == 'true')
     uses: ./.github/workflows/e2e-app.yml
+    secrets: inherit
     with:
       app-name: test-sonarr
       manifest: sonarr
@@ -281,6 +291,7 @@ jobs:
       !failure() && !cancelled() &&
       (needs.changes.outputs.core == 'true' || needs.changes.outputs.e2e-jellyfin == 'true')
     uses: ./.github/workflows/e2e-app.yml
+    secrets: inherit
     with:
       app-name: test-jellyfin
       manifest: jellyfin
@@ -293,6 +304,7 @@ jobs:
       !failure() && !cancelled() &&
       (needs.changes.outputs.core == 'true' || needs.changes.outputs.e2e-uptime-kuma == 'true')
     uses: ./.github/workflows/e2e-app.yml
+    secrets: inherit
     with:
       app-name: test-uptime-kuma
       manifest: uptime-kuma
@@ -305,6 +317,7 @@ jobs:
       !failure() && !cancelled() &&
       (needs.changes.outputs.core == 'true' || needs.changes.outputs.e2e-mealie == 'true')
     uses: ./.github/workflows/e2e-app.yml
+    secrets: inherit
     with:
       app-name: test-mealie
       manifest: mealie
@@ -318,6 +331,7 @@ jobs:
       !failure() && !cancelled() &&
       (needs.changes.outputs.core == 'true' || needs.changes.outputs.e2e-paperless-ngx == 'true')
     uses: ./.github/workflows/e2e-app.yml
+    secrets: inherit
     with:
       app-name: test-paperless
       manifest: paperless-ngx
@@ -331,6 +345,7 @@ jobs:
       !failure() && !cancelled() &&
       (needs.changes.outputs.core == 'true' || needs.changes.outputs.e2e-outline == 'true')
     uses: ./.github/workflows/e2e-app.yml
+    secrets: inherit
     with:
       app-name: test-outline
       manifest: outline
@@ -344,6 +359,7 @@ jobs:
       !failure() && !cancelled() &&
       (needs.changes.outputs.core == 'true' || needs.changes.outputs.e2e-gitea == 'true')
     uses: ./.github/workflows/e2e-app.yml
+    secrets: inherit
     with:
       app-name: test-gitea
       manifest: gitea
@@ -357,6 +373,7 @@ jobs:
       !failure() && !cancelled() &&
       (needs.changes.outputs.core == 'true' || needs.changes.outputs.e2e-bookstack == 'true')
     uses: ./.github/workflows/e2e-app.yml
+    secrets: inherit
     with:
       app-name: test-bookstack
       manifest: bookstack
