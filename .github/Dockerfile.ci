@@ -35,13 +35,17 @@ RUN wget -NP /tmp https://packagecloud.io/dokku/dokku/gpgkey && \
     mv /usr/bin/systemctl.real /usr/bin/systemctl || rm -f /usr/bin/systemctl && \
     rm -rf /var/lib/apt/lists/*
 
-# Install Dokku plugins: postgres, mariadb, redis
-RUN dokku plugin:install https://github.com/dokku/dokku-postgres.git postgres && \
-    dokku plugin:install https://github.com/dokku/dokku-mariadb.git mariadb && \
-    dokku plugin:install https://github.com/dokku/dokku-redis.git redis
-
-# Install dokkufile plugin
-RUN dokku plugin:install https://github.com/deanmarano/dokkufile.git dokkufile || true
+# Clone Dokku plugins (postgres, mariadb, redis, dokkufile) without running
+# install hooks — the hooks need Docker which isn't available during build.
+# Plugin install hooks will run at container start when Docker is up.
+RUN git clone https://github.com/dokku/dokku-postgres.git /var/lib/dokku/plugins/available/postgres && \
+    dokku plugin:enable postgres && \
+    git clone https://github.com/dokku/dokku-mariadb.git /var/lib/dokku/plugins/available/mariadb && \
+    dokku plugin:enable mariadb && \
+    git clone https://github.com/dokku/dokku-redis.git /var/lib/dokku/plugins/available/redis && \
+    dokku plugin:enable redis && \
+    git clone https://github.com/deanmarano/dokkufile.git /var/lib/dokku/plugins/available/dokkufile && \
+    dokku plugin:enable dokkufile || true
 
 # Install yq v4.44.1
 RUN wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v4.44.1/yq_linux_amd64 && \

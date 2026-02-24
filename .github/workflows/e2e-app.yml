@@ -45,6 +45,8 @@ jobs:
             sleep 1
           done
           docker info
+      - name: Initialize Dokku plugins
+        run: dokku plugin:install-dependencies --core
       - name: Set up node_modules
         run: cp -r /npm-cache/node_modules ./node_modules
       - name: Install library plugin
