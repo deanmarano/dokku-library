@@ -31,8 +31,10 @@ RUN wget -NP /tmp https://packagecloud.io/dokku/dokku/gpgkey && \
     apt-get update && \
     mv /usr/bin/systemctl /usr/bin/systemctl.real || true && \
     printf '#!/bin/sh\nexit 0\n' > /usr/bin/systemctl && chmod +x /usr/bin/systemctl && \
-    apt-get install -y dokku && \
+    apt-get install -y dokku || true && \
     mv /usr/bin/systemctl.real /usr/bin/systemctl || rm -f /usr/bin/systemctl && \
+    # Mark packages with failed postinstall as installed so future apt calls work
+    sed -i 's/^Status: install ok half-configured$/Status: install ok installed/' /var/lib/dpkg/status && \
     rm -rf /var/lib/apt/lists/*
 
 # Clone Dokku plugins (postgres, mariadb, redis, dokkufile) without running
