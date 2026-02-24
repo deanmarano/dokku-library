@@ -1,0 +1,59 @@
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Core system deps
+RUN apt-get update && apt-get install -y \
+    apt-transport-https \
+    ca-certificates \
+    curl \
+    gnupg \
+    lsb-release \
+    software-properties-common \
+    sudo \
+    wget \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Docker CE (needed for Dokku / DinD)
+RUN curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg && \
+    echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu jammy stable" \
+      > /etc/apt/sources.list.d/docker.list && \
+    apt-get update && \
+    apt-get install -y docker-ce docker-ce-cli containerd.io && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install Dokku
+RUN wget -NP /tmp https://packagecloud.io/dokku/dokku/gpgkey && \
+    apt-key add /tmp/gpgkey && \
+    echo "deb https://packagecloud.io/dokku/dokku/ubuntu/ jammy main" > /etc/apt/sources.list.d/dokku.list && \
+    apt-get update && \
+    apt-get install -y dokku && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install Dokku plugins: postgres, mariadb, redis
+RUN dokku plugin:install https://github.com/dokku/dokku-postgres.git postgres && \
+    dokku plugin:install https://github.com/dokku/dokku-mariadb.git mariadb && \
+    dokku plugin:install https://github.com/dokku/dokku-redis.git redis
+
+# Install dokkufile plugin
+RUN dokku plugin:install https://github.com/deanmarano/dokkufile.git dokkufile || true
+
+# Install yq v4.44.1
+RUN wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v4.44.1/yq_linux_amd64 && \
+    chmod +x /usr/local/bin/yq
+
+# Install Node.js 20
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y nodejs && \
+    rm -rf /var/lib/apt/lists/*
+
+# Pre-install npm dependencies
+COPY package.json package-lock.json /npm-cache/
+RUN cd /npm-cache && npm ci
+
+# Install Playwright Chromium + system deps
+RUN cd /npm-cache && npx playwright install --with-deps chromium
+
+# Clean up
+RUN apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/*
