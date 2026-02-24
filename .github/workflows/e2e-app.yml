@@ -28,7 +28,7 @@ jobs:
   test:
     runs-on: ubuntu-22.04
     container:
-      image: ghcr.io/deanmarano/dokku-library-ci:latest
+      image: mcr.microsoft.com/playwright:v1.58.2-jammy
       options: --privileged
     timeout-minutes: 30
     steps:
@@ -45,10 +45,26 @@ jobs:
             sleep 1
           done
           docker info
-      - name: Initialize Dokku plugins
-        run: dokku plugin:install-dependencies --core
-      - name: Set up node_modules
-        run: cp -r /npm-cache/node_modules ./node_modules
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Dokku
+        run: |
+          wget -NP . https://packagecloud.io/dokku/dokku/gpgkey
+          apt-key add gpgkey
+          echo "deb https://packagecloud.io/dokku/dokku/ubuntu/ jammy main" | tee /etc/apt/sources.list.d/dokku.list
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y dokku
+          dokku plugin:install-dependencies --core
+      - name: Install dokku plugins
+        if: inputs.dokku-plugins != ''
+        run: |
+          for plugin in ${{ inputs.dokku-plugins }}; do
+            echo "Installing dokku-${plugin}..."
+            dokku plugin:install "https://github.com/dokku/dokku-${plugin}.git" "$plugin"
+          done
+      - name: Install dokkufile plugin
+        run: |
+          dokku plugin:install https://github.com/deanmarano/dokkufile.git dokkufile || true
       - name: Install library plugin
         run: |
           mkdir -p /var/lib/dokku/plugins/available/library/subcommands
