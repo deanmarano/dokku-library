@@ -23,13 +23,17 @@ RUN curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /
     apt-get install -y docker-ce docker-ce-cli containerd.io && \
     rm -rf /var/lib/apt/lists/*
 
-# Install Dokku
+# Install Dokku — skip the postinstall plugin setup (requires systemd)
+# We'll run plugin:install-dependencies manually after
 RUN wget -NP /tmp https://packagecloud.io/dokku/dokku/gpgkey && \
     apt-key add /tmp/gpgkey && \
     echo "deb https://packagecloud.io/dokku/dokku/ubuntu/ jammy main" > /etc/apt/sources.list.d/dokku.list && \
     apt-get update && \
-    apt-get install -y dokku && \
+    apt-get install -y --no-install-recommends dokku herokuish sshcommand plugn gliderlabs-sigil procfile-util netrc && \
     rm -rf /var/lib/apt/lists/*
+
+# Manually run dokku setup that the postinstall script couldn't do without systemd
+RUN dokku plugin:install-dependencies --core
 
 # Install Dokku plugins: postgres, mariadb, redis
 RUN dokku plugin:install https://github.com/dokku/dokku-postgres.git postgres && \
