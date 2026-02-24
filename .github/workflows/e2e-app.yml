@@ -49,7 +49,7 @@ jobs:
         if: steps.playwright-cache.outputs.cache-hit == 'true'
         run: npx playwright install-deps
       - name: Log in to Docker Hub
-        if: secrets.DOCKERHUB_USERNAME != ''
+        if: ${{ secrets.DOCKERHUB_USERNAME != '' }}
         run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
       - name: Install Dokku
         run: |
