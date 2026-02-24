@@ -73,11 +73,11 @@ if [[ -f "$PLUGIN_DATA_ROOT/apps/$app_name/plugins/dokku-mail" ]]; then
 fi
 
 # Unlink and unprotect auth
-if [[ -f "$PLUGIN_DATA_ROOT/apps/$app_name/plugins/dokku-auth" ]]; then
-  auth_service="$(cat "$PLUGIN_DATA_ROOT/apps/$app_name/plugins/dokku-auth")"
-  echo "       Removing auth: $auth_service"
-  dokku_cmd auth:unprotect "$app_name" 2>/dev/null || true
-  dokku_cmd auth:unlink "$auth_service" "$app_name" 2>/dev/null || true
+if [[ -f "$PLUGIN_DATA_ROOT/apps/$app_name/plugins/dokku-sso" ]]; then
+  auth_service="$(cat "$PLUGIN_DATA_ROOT/apps/$app_name/plugins/dokku-sso")"
+  echo "       Removing sso: $auth_service"
+  dokku_cmd sso:unprotect "$app_name" 2>/dev/null || true
+  dokku_cmd sso:unlink "$auth_service" "$app_name" 2>/dev/null || true
 fi
 
 # Disable letsencrypt

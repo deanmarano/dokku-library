@@ -44,7 +44,7 @@ export default function globalTeardown() {
 
   // Clean up auth services if they exist
   try {
-    dokku("auth:frontend:destroy test-frontend -f", {
+    dokku("sso:frontend:destroy test-frontend -f", {
       timeout: 60_000,
       ignoreError: true,
     });
@@ -54,7 +54,7 @@ export default function globalTeardown() {
   }
 
   try {
-    dokku("auth:destroy test-auth -f", {
+    dokku("sso:destroy test-auth -f", {
       timeout: 60_000,
       ignoreError: true,
     });

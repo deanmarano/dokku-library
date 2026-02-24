@@ -211,18 +211,18 @@ export function setupAuthServices(
   frontendService = "test-frontend"
 ): AuthCredentials {
   // Create LDAP directory service
-  dokku(`auth:create ${authService}`, { timeout: 180_000 });
+  dokku(`sso:create ${authService}`, { timeout: 180_000 });
 
   // Create Authelia frontend service
-  dokku(`auth:frontend:create ${frontendService}`, { timeout: 180_000 });
+  dokku(`sso:frontend:create ${frontendService}`, { timeout: 180_000 });
 
   // Link frontend to directory
-  dokku(`auth:frontend:use-directory ${frontendService} ${authService}`, {
+  dokku(`sso:frontend:use-directory ${frontendService} ${authService}`, {
     timeout: 60_000,
   });
 
   // Get credentials
-  const credentials = dokku(`auth:credentials ${authService}`, {
+  const credentials = dokku(`sso:credentials ${authService}`, {
     ignoreError: true,
   });
 
@@ -247,11 +247,11 @@ export function teardownAuthServices(
   authService = "test-auth",
   frontendService = "test-frontend"
 ): void {
-  dokku(`auth:frontend:destroy ${frontendService} -f`, {
+  dokku(`sso:frontend:destroy ${frontendService} -f`, {
     timeout: 60_000,
     ignoreError: true,
   });
-  dokku(`auth:destroy ${authService} -f`, {
+  dokku(`sso:destroy ${authService} -f`, {
     timeout: 60_000,
     ignoreError: true,
   });
@@ -265,7 +265,7 @@ export function createLdapTestUser(
   user: TestUser
 ): void {
   dokku(
-    `auth:create-user ${authService} ${user.username} ${user.email} ${user.password}`,
+    `sso:create-user ${authService} ${user.username} ${user.email} ${user.password}`,
     { timeout: 30_000 }
   );
 }
@@ -327,7 +327,7 @@ export async function waitForAuthHealthy(
   const start = Date.now();
   while (Date.now() - start < timeout) {
     try {
-      const result = dokku(`auth:info ${authService}`, { ignoreError: true });
+      const result = dokku(`sso:info ${authService}`, { ignoreError: true });
       if (result.includes("running") || result.includes("healthy")) {
         return true;
       }

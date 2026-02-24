@@ -169,17 +169,17 @@ fi
 
 # Post-processing: auth
 if [[ "$no_auth" != "true" ]]; then
-  if check_plugin_available "dokku-auth"; then
+  if check_plugin_available "dokku-sso"; then
     AUTH_SERVICE="${auth_service:-}"
     if [[ -z "$AUTH_SERVICE" ]]; then
-      AUTH_SERVICE="$(dokku_cmd auth:list 2>/dev/null | head -1 || true)"
+      AUTH_SERVICE="$(dokku_cmd sso:list 2>/dev/null | head -1 || true)"
     fi
     if [[ -n "$AUTH_SERVICE" ]]; then
       echo "       Linking auth service: $AUTH_SERVICE"
-      dokku_cmd auth:link "$AUTH_SERVICE" "$app_name" || true
+      dokku_cmd sso:link "$AUTH_SERVICE" "$app_name" || true
       echo "       Protecting app with Authelia forward auth"
-      dokku_cmd auth:protect "$app_name" || true
-      set_app_state "$app_name" "plugins/dokku-auth" "$AUTH_SERVICE"
+      dokku_cmd sso:protect "$app_name" || true
+      set_app_state "$app_name" "plugins/dokku-sso" "$AUTH_SERVICE"
     else
       echo "       No auth service found, skipping auth setup"
     fi
