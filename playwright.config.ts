@@ -17,7 +17,7 @@ export default defineConfig({
     {
       name: "integration",
       testDir: "./tests/e2e",
-      testMatch: ["checkout.spec.ts", "doctor.spec.ts", "lifecycle.spec.ts", "ghost.spec.ts", "linkding.spec.ts", "miniflux.spec.ts", "vaultwarden.spec.ts", "grafana.spec.ts", "radarr.spec.ts", "sonarr.spec.ts", "jellyfin.spec.ts", "uptime-kuma.spec.ts", "mealie.spec.ts", "paperless-ngx.spec.ts", "outline.spec.ts", "gitea.spec.ts", "bookstack.spec.ts"],
+      testMatch: ["checkout.spec.ts", "doctor.spec.ts", "lifecycle.spec.ts", "ghost.spec.ts", "linkding.spec.ts", "miniflux.spec.ts", "vaultwarden.spec.ts", "grafana.spec.ts", "radarr.spec.ts", "sonarr.spec.ts", "jellyfin.spec.ts", "uptime-kuma.spec.ts", "mealie.spec.ts", "paperless-ngx.spec.ts", "outline.spec.ts", "gitea.spec.ts", "bookstack.spec.ts", "bugsink.spec.ts", "glitchtip.spec.ts"],
     },
     {
       name: "apps",

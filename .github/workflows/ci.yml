@@ -32,7 +32,6 @@ jobs:
       e2e-outline: ${{ steps.filter.outputs.e2e-outline }}
       e2e-gitea: ${{ steps.filter.outputs.e2e-gitea }}
       e2e-bookstack: ${{ steps.filter.outputs.e2e-bookstack }}
-      e2e-discourse: ${{ steps.filter.outputs.e2e-discourse }}
       e2e-bugsink: ${{ steps.filter.outputs.e2e-bugsink }}
       e2e-glitchtip: ${{ steps.filter.outputs.e2e-glitchtip }}
     steps:
@@ -123,9 +122,6 @@ jobs:
             e2e-bookstack:
               - 'tests/e2e/bookstack.spec.ts'
               - 'library/bookstack/**'
-            e2e-discourse:
-              - 'tests/e2e/discourse.spec.ts'
-              - 'library/discourse/**'
             e2e-bugsink:
               - 'tests/e2e/bugsink.spec.ts'
               - 'library/bugsink/**'
@@ -393,21 +389,6 @@ jobs:
       dokku-plugins: mariadb
       extra-deploy-flags: "--no-mail"
       artifact-name: e2e-bookstack
-
-  e2e-discourse:
-    needs: [changes, lint, unit-tests]
-    if: |
-      !failure() && !cancelled() &&
-      (needs.changes.outputs.core == 'true' || needs.changes.outputs.e2e-discourse == 'true')
-    uses: ./.github/workflows/e2e-app.yml
-    secrets: inherit
-    with:
-      app-name: test-discourse
-      manifest: discourse
-      test-spec: tests/e2e/discourse.spec.ts
-      dokku-plugins: postgres redis
-      extra-deploy-flags: "--no-mail"
-      artifact-name: e2e-discourse
 
   e2e-bugsink:
     needs: [changes, lint, unit-tests]
