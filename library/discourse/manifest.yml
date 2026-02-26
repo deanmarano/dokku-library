@@ -1,0 +1,46 @@
+library:
+  description: Community discussion forum platform
+  url: https://www.discourse.org
+  prompts:
+    - key: DOMAIN
+      question: Domain for Discourse
+      default: discourse.%HOSTNAME%
+  connection_env:
+    service: db
+    type: postgres
+    mode: map
+    map:
+      host: DISCOURSE_DATABASE_HOST
+      port: DISCOURSE_DATABASE_PORT_NUMBER
+      user: DISCOURSE_DATABASE_USER
+      password: DISCOURSE_DATABASE_PASSWORD
+      name: DISCOURSE_DATABASE_NAME
+
+services:
+  db:
+    type: postgres
+  redis:
+    type: redis
+
+apps:
+  discourse:
+    image: bitnami/discourse:latest
+    domains: ["%DOMAIN%"]
+    links:
+      postgres: db
+      redis: redis
+    env:
+      DISCOURSE_HOST: "%DOMAIN%"
+      DISCOURSE_REDIS_HOST: "dokku.redis.%APP_NAME%-redis"
+      DISCOURSE_REDIS_PORT_NUMBER: "6379"
+      DISCOURSE_SKIP_INSTALL: "no"
+    ports:
+      http: "80:3000"
+    storage:
+      - "/var/lib/dokku/data/storage/discourse-%APP_NAME%/uploads:/bitnami/discourse/public/uploads"
+      - "/var/lib/dokku/data/storage/discourse-%APP_NAME%/backups:/bitnami/discourse/public/backups"
+    letsencrypt: true
+    healthchecks:
+      web:
+        - path: /
+          timeout: 180

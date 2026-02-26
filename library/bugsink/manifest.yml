@@ -1,0 +1,31 @@
+library:
+  description: Lightweight self-hosted error tracking
+  url: https://www.bugsink.com
+  prompts:
+    - key: DOMAIN
+      question: Domain for Bugsink
+      default: bugsink.%HOSTNAME%
+
+services:
+  db:
+    type: postgres
+
+apps:
+  bugsink:
+    image: bugsink/bugsink:latest
+    domains: ["%DOMAIN%"]
+    links:
+      postgres: db
+    env:
+      SECRET_KEY: "%SECRET%"
+      BASE_URL: "https://%DOMAIN%"
+      CREATE_SUPERUSER: "admin:%SECRET%"
+    ports:
+      http: "80:8000"
+    storage:
+      - "/var/lib/dokku/data/storage/bugsink-%APP_NAME%/data:/data"
+    letsencrypt: true
+    healthchecks:
+      web:
+        - path: /
+          timeout: 60

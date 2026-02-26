@@ -1,0 +1,35 @@
+library:
+  description: Open source error tracking compatible with Sentry SDKs
+  url: https://glitchtip.com
+  prompts:
+    - key: DOMAIN
+      question: Domain for GlitchTip
+      default: glitchtip.%HOSTNAME%
+
+services:
+  db:
+    type: postgres
+  redis:
+    type: redis
+
+apps:
+  glitchtip:
+    image: glitchtip/glitchtip:latest
+    domains: ["%DOMAIN%"]
+    links:
+      postgres: db
+      redis: redis
+    env:
+      SECRET_KEY: "%SECRET%"
+      GLITCHTIP_DOMAIN: "https://%DOMAIN%"
+      DEFAULT_FROM_EMAIL: "glitchtip@%HOSTNAME%"
+      EMAIL_URL: "consolemail://"
+      SERVER_ROLE: "all_in_one"
+      ENABLE_USER_REGISTRATION: "True"
+    ports:
+      http: "80:8000"
+    letsencrypt: true
+    healthchecks:
+      web:
+        - path: /
+          timeout: 90

@@ -32,6 +32,9 @@ jobs:
       e2e-outline: ${{ steps.filter.outputs.e2e-outline }}
       e2e-gitea: ${{ steps.filter.outputs.e2e-gitea }}
       e2e-bookstack: ${{ steps.filter.outputs.e2e-bookstack }}
+      e2e-discourse: ${{ steps.filter.outputs.e2e-discourse }}
+      e2e-bugsink: ${{ steps.filter.outputs.e2e-bugsink }}
+      e2e-glitchtip: ${{ steps.filter.outputs.e2e-glitchtip }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -120,6 +123,15 @@ jobs:
             e2e-bookstack:
               - 'tests/e2e/bookstack.spec.ts'
               - 'library/bookstack/**'
+            e2e-discourse:
+              - 'tests/e2e/discourse.spec.ts'
+              - 'library/discourse/**'
+            e2e-bugsink:
+              - 'tests/e2e/bugsink.spec.ts'
+              - 'library/bugsink/**'
+            e2e-glitchtip:
+              - 'tests/e2e/glitchtip.spec.ts'
+              - 'library/glitchtip/**'
 
   lint:
     needs: [changes]
@@ -381,3 +393,48 @@ jobs:
       dokku-plugins: mariadb
       extra-deploy-flags: "--no-mail"
       artifact-name: e2e-bookstack
+
+  e2e-discourse:
+    needs: [changes, lint, unit-tests]
+    if: |
+      !failure() && !cancelled() &&
+      (needs.changes.outputs.core == 'true' || needs.changes.outputs.e2e-discourse == 'true')
+    uses: ./.github/workflows/e2e-app.yml
+    secrets: inherit
+    with:
+      app-name: test-discourse
+      manifest: discourse
+      test-spec: tests/e2e/discourse.spec.ts
+      dokku-plugins: postgres redis
+      extra-deploy-flags: "--no-mail"
+      artifact-name: e2e-discourse
+
+  e2e-bugsink:
+    needs: [changes, lint, unit-tests]
+    if: |
+      !failure() && !cancelled() &&
+      (needs.changes.outputs.core == 'true' || needs.changes.outputs.e2e-bugsink == 'true')
+    uses: ./.github/workflows/e2e-app.yml
+    secrets: inherit
+    with:
+      app-name: test-bugsink
+      manifest: bugsink
+      test-spec: tests/e2e/bugsink.spec.ts
+      dokku-plugins: postgres
+      extra-deploy-flags: "--no-mail"
+      artifact-name: e2e-bugsink
+
+  e2e-glitchtip:
+    needs: [changes, lint, unit-tests]
+    if: |
+      !failure() && !cancelled() &&
+      (needs.changes.outputs.core == 'true' || needs.changes.outputs.e2e-glitchtip == 'true')
+    uses: ./.github/workflows/e2e-app.yml
+    secrets: inherit
+    with:
+      app-name: test-glitchtip
+      manifest: glitchtip
+      test-spec: tests/e2e/glitchtip.spec.ts
+      dokku-plugins: postgres redis
+      extra-deploy-flags: "--no-mail"
+      artifact-name: e2e-glitchtip
