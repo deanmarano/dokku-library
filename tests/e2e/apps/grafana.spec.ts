@@ -12,6 +12,7 @@ import {
   verifyAutheliaRedirect,
   waitForAuthHealthy,
   getConfig,
+  pluginAvailable,
   type TestUser,
 } from "../helpers.js";
 
@@ -30,6 +31,9 @@ test.describe(`${LIBRARY_APP} e2e`, () => {
   test.describe.configure({ mode: "serial" });
 
   test.beforeAll(async () => {
+    test.skip(!pluginAvailable("postgres"), "postgres plugin not available");
+    test.skip(!pluginAvailable("sso"), "sso plugin not available");
+
     setupAuthServices(AUTH_SERVICE, FRONTEND_SERVICE);
     await waitForAuthHealthy(AUTH_SERVICE);
     createLdapTestUser(AUTH_SERVICE, TEST_USER);
