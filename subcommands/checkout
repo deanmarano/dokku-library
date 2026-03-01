@@ -176,7 +176,6 @@ if [[ "$no_auth" != "true" ]]; then
     fi
     if [[ -n "$AUTH_SERVICE" ]]; then
       # Only sso:link (LDAP) if the manifest explicitly requests it
-      local sso_link
       sso_link="$(get_manifest_field "$manifest" ".apps.\"$manifest_app_name\".sso_link // false" 2>/dev/null || echo "false")"
       if [[ "$sso_link" == "true" ]]; then
         echo "       Linking LDAP service: $AUTH_SERVICE"
@@ -189,13 +188,11 @@ if [[ "$no_auth" != "true" ]]; then
       set_app_state "$app_name" "plugins/dokku-sso" "$AUTH_SERVICE"
 
       # Apply app-specific SSO env vars (e.g. auth proxy headers) if defined
-      local sso_env_keys
       sso_env_keys="$(get_manifest_field "$manifest" ".apps.\"$manifest_app_name\".sso_env | keys | .[]" 2>/dev/null || true)"
       if [[ -n "$sso_env_keys" ]]; then
         echo "       Setting SSO environment variables"
-        local sso_env_args=""
+        sso_env_args=""
         while IFS= read -r key; do
-          local val
           val="$(get_manifest_field "$manifest" ".apps.\"$manifest_app_name\".sso_env.\"$key\"")"
           sso_env_args+=" $key=$val"
         done <<<"$sso_env_keys"
