@@ -13,7 +13,6 @@ import {
   waitForAuthHealthy,
   getConfig,
   type TestUser,
-  type AuthCredentials,
 } from "../helpers.js";
 
 const APP = "test-grafana";
@@ -27,13 +26,11 @@ const TEST_USER: TestUser = {
   password: "TestPass123!",
 };
 
-let authCredentials: AuthCredentials;
-
 test.describe(`${LIBRARY_APP} e2e`, () => {
   test.describe.configure({ mode: "serial" });
 
   test.beforeAll(async () => {
-    authCredentials = setupAuthServices(AUTH_SERVICE, FRONTEND_SERVICE);
+    setupAuthServices(AUTH_SERVICE, FRONTEND_SERVICE);
     await waitForAuthHealthy(AUTH_SERVICE);
     createLdapTestUser(AUTH_SERVICE, TEST_USER);
     addHostsEntry(DOMAIN);
@@ -69,24 +66,28 @@ test.describe(`${LIBRARY_APP} e2e`, () => {
     await expect(page).toHaveURL(new RegExp(DOMAIN));
   });
 
-  test("can access Grafana login page and log in", async ({ page }) => {
+  test("auth proxy auto-logs user into Grafana after Authelia", async ({ page }) => {
     await page.goto(`http://${DOMAIN}/`);
     await loginViaAuthelia(page, TEST_USER.username, TEST_USER.password);
-    const adminPassword = getConfig(APP, "GF_SECURITY_ADMIN_PASSWORD");
-    // Grafana has its own login - fill admin credentials
+    // With auth proxy enabled, Grafana should NOT show its own login form —
+    // the user should be automatically signed in via the Remote-User header
     const loginForm = page.locator('input[name="user"], [data-testid="data-testid Username input"]');
-    if (await loginForm.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await loginForm.fill("admin");
-      await page.locator('input[name="password"], [data-testid="data-testid Password input"]').fill(adminPassword);
-      await page.locator('button[type="submit"]').click();
-      await page.waitForLoadState("networkidle");
-    }
+    const loginVisible = await loginForm.isVisible({ timeout: 5000 }).catch(() => false);
+    expect(loginVisible).toBe(false);
+    // Should be inside Grafana (home/dashboard)
     const content = await page.content();
     expect(
       content.includes("Grafana") ||
         content.includes("Home") ||
         content.includes("dashboard")
     ).toBe(true);
+  });
+
+  test("sso_env variables are set on the app", () => {
+    const authProxyEnabled = getConfig(APP, "GF_AUTH_PROXY_ENABLED");
+    expect(authProxyEnabled).toBe("true");
+    const headerName = getConfig(APP, "GF_AUTH_PROXY_HEADER_NAME");
+    expect(headerName).toBe("Remote-User");
   });
 
   test("cleanup succeeds completely", () => {

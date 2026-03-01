@@ -180,6 +180,21 @@ if [[ "$no_auth" != "true" ]]; then
       echo "       Protecting app with Authelia forward auth"
       dokku_cmd sso:protect "$app_name" || true
       set_app_state "$app_name" "plugins/dokku-sso" "$AUTH_SERVICE"
+
+      # Apply app-specific SSO env vars (e.g. auth proxy headers) if defined
+      local sso_env_keys
+      sso_env_keys="$(get_manifest_field "$manifest" ".apps.\"$manifest_app_name\".sso_env | keys | .[]" 2>/dev/null || true)"
+      if [[ -n "$sso_env_keys" ]]; then
+        echo "       Setting SSO environment variables"
+        local sso_env_args=""
+        while IFS= read -r key; do
+          local val
+          val="$(get_manifest_field "$manifest" ".apps.\"$manifest_app_name\".sso_env.\"$key\"")"
+          sso_env_args+=" $key=$val"
+        done <<<"$sso_env_keys"
+        # shellcheck disable=SC2086
+        dokku_cmd config:set --no-restart "$app_name" $sso_env_args
+      fi
     else
       echo "       No auth service found, skipping auth setup"
     fi
