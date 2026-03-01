@@ -169,7 +169,7 @@ fi
 
 # Post-processing: auth
 if [[ "$no_auth" != "true" ]]; then
-  if check_plugin_available "dokku-sso"; then
+  if check_plugin_available "sso"; then
     AUTH_SERVICE="${auth_service:-}"
     if [[ -z "$AUTH_SERVICE" ]]; then
       AUTH_SERVICE="$(dokku_cmd sso:list 2>/dev/null | head -1 || true)"
