@@ -3,9 +3,6 @@
 # Runs in the context of the cleanup script with access to:
 #   $app_name, $manifest_name, and all functions.
 
-echo "       Removing Prometheus cron job"
-rm -f /etc/cron.d/dokku-prometheus-discovery
-
 # Remove the Prometheus data source from Grafana provisioning
 grafana_app="$(find_app_by_manifest "grafana" 2>/dev/null || true)"
 if [[ -n "$grafana_app" ]]; then
