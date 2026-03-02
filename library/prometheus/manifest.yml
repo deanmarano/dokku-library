@@ -1,0 +1,24 @@
+library:
+  description: Open-source monitoring and alerting toolkit
+  url: https://prometheus.io
+  requires:
+    - grafana
+  prompts:
+    - key: DOMAIN
+      question: Domain for Prometheus
+      default: prometheus.%HOSTNAME%
+
+apps:
+  prometheus:
+    image: prom/prometheus:latest
+    domains: ["%DOMAIN%"]
+    ports:
+      http: "80:9090"
+    storage:
+      - "/var/lib/dokku/data/storage/%APP_NAME%-data:/prometheus"
+      - "/var/lib/dokku/data/storage/%APP_NAME%-config:/etc/prometheus"
+    letsencrypt: true
+    healthchecks:
+      web:
+        - path: /-/healthy
+          timeout: 60

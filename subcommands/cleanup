@@ -36,6 +36,17 @@ fi
 
 echo "-----> Cleaning up $app_name"
 
+# Run pre-cleanup hook if it exists
+manifest_name="$(get_app_state "$app_name" "MANIFEST_NAME")"
+if [[ -n "$manifest_name" ]]; then
+  pre_cleanup_script="$PLUGIN_BASE_PATH/library/$manifest_name/pre-cleanup.sh"
+  if [[ -f "$pre_cleanup_script" ]]; then
+    echo "-----> Running pre-cleanup hook"
+    # shellcheck source=/dev/null
+    source "$pre_cleanup_script"
+  fi
+fi
+
 # Stop app
 echo "       Stopping app"
 dokku_cmd ps:stop "$app_name" 2>/dev/null || true

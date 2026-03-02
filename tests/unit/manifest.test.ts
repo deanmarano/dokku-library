@@ -14,6 +14,7 @@ interface Manifest {
   library: {
     description: string;
     url: string;
+    requires?: string[];
     prompts: Array<{
       key: string;
       question: string;
@@ -198,6 +199,17 @@ describe("manifest validation", () => {
               expect(check.path).toBeTruthy();
               expect(check.timeout).toBeGreaterThan(0);
             }
+          }
+        }
+      });
+
+      it("should have requires referencing existing library manifests", () => {
+        manifest = loadManifest(appName);
+        if (manifest.library.requires) {
+          expect(Array.isArray(manifest.library.requires)).toBe(true);
+          for (const req of manifest.library.requires) {
+            expect(typeof req).toBe("string");
+            expect(appDirs).toContain(req);
           }
         }
       });

@@ -163,6 +163,68 @@ dokku_cmd() {
   return $rc
 }
 
+# Find an installed app by its manifest name.
+# Returns the app name whose MANIFEST_NAME state matches the given name.
+find_app_by_manifest() {
+  local manifest_name="$1"
+  local installed_apps
+  installed_apps="$(get_installed_apps)"
+
+  if [[ -z "$installed_apps" ]]; then
+    return 1
+  fi
+
+  while IFS= read -r app; do
+    local stored_manifest
+    stored_manifest="$(get_app_state "$app" "MANIFEST_NAME")"
+    if [[ "$stored_manifest" == "$manifest_name" ]]; then
+      echo "$app"
+      return 0
+    fi
+  done <<<"$installed_apps"
+
+  return 1
+}
+
+# Ensure all requirements from a manifest are installed.
+# Reads the library.requires array and recursively checks out missing apps.
+ensure_requirements() {
+  local manifest="$1"
+  shift
+  # Passthrough flags from the parent checkout
+  local passthrough_args=("$@")
+
+  local req_count
+  req_count="$(get_manifest_field "$manifest" '.library.requires | length' 2>/dev/null || echo 0)"
+
+  if [[ "$req_count" -eq 0 || "$req_count" == "null" ]]; then
+    return 0
+  fi
+
+  for ((i = 0; i < req_count; i++)); do
+    local req
+    req="$(get_manifest_field "$manifest" ".library.requires[$i]")"
+
+    # Check if already installed (by manifest name)
+    if find_app_by_manifest "$req" >/dev/null 2>&1; then
+      echo "       Requirement '$req' already installed"
+      continue
+    fi
+
+    # Verify the requirement exists in the library
+    local req_manifest_path="$PLUGIN_BASE_PATH/library/$req/manifest.yml"
+    if [[ ! -f "$req_manifest_path" ]]; then
+      echo "!     Required app '$req' not found in library" >&2
+      return 1
+    fi
+
+    echo "-----> Installing required dependency: $req"
+    # Build passthrough args for the recursive checkout
+    local checkout_cmd="$PLUGIN_BASE_PATH/subcommands/checkout"
+    "$checkout_cmd" "$req" --non-interactive "${passthrough_args[@]}"
+  done
+}
+
 get_library_apps() {
   local library_dir="$PLUGIN_BASE_PATH/library"
   if [[ -d "$library_dir" ]]; then

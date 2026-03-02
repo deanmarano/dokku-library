@@ -53,6 +53,15 @@ app_name="${custom_name:-$library_app}"
 # Load manifest
 manifest="$(load_manifest "$library_app")"
 
+# Ensure requirements are installed first
+passthrough_flags=()
+[[ "$no_ssl" == "true" ]] && passthrough_flags+=("--no-ssl")
+[[ "$no_dns" == "true" ]] && passthrough_flags+=("--no-dns")
+[[ "$no_mail" == "true" ]] && passthrough_flags+=("--no-mail")
+[[ "$no_auth" == "true" ]] && passthrough_flags+=("--no-auth")
+[[ -n "$auth_service" ]] && passthrough_flags+=("--auth-service=$auth_service")
+ensure_requirements "$manifest" "${passthrough_flags[@]}"
+
 # Check if already installed
 if is_app_installed "$app_name"; then
   echo "!     App '$app_name' is already installed. Use library:cleanup first." >&2
@@ -223,6 +232,14 @@ fi
 for key in "${!prompt_values[@]}"; do
   set_app_state "$app_name" "config/$key" "${prompt_values[$key]}"
 done
+
+# Run post-checkout hook if it exists
+post_checkout_script="$PLUGIN_BASE_PATH/library/$library_app/post-checkout.sh"
+if [[ -f "$post_checkout_script" ]]; then
+  echo "-----> Running post-checkout hook"
+  # shellcheck source=/dev/null
+  source "$post_checkout_script"
+fi
 
 echo "=====> $app_name deployed successfully!"
 echo "       URL: https://$domain"
