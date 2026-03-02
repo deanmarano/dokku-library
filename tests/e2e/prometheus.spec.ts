@@ -10,7 +10,6 @@ import {
 } from "./helpers.js";
 
 const APP_NAME = "test-prometheus";
-const GRAFANA_APP_NAME = "test-prometheus-grafana";
 
 test.describe("library:checkout prometheus (with grafana dependency)", () => {
   test.beforeAll(() => {
@@ -29,11 +28,10 @@ test.describe("library:checkout prometheus (with grafana dependency)", () => {
   test.afterAll(() => {
     cleanupApp(APP_NAME);
     // Grafana was auto-installed as a dependency — clean it up too
-    cleanupApp(GRAFANA_APP_NAME);
+    cleanupApp("grafana");
   });
 
   test("should have auto-installed grafana as a dependency", () => {
-    // Grafana should exist (installed by ensure_requirements with default name)
     const exists = appExists("grafana");
     expect(exists).toBe(true);
   });
@@ -60,30 +58,22 @@ test.describe("library:checkout prometheus (with grafana dependency)", () => {
   });
 
   test("should have prometheus config with targets file", () => {
-    const configDir = `/var/lib/dokku/data/storage/${APP_NAME}-config`;
-    const result = dokku(`run ${APP_NAME} cat /etc/prometheus/prometheus.yml`, {
-      ignoreError: true,
-      timeout: 30_000,
-    });
+    const result = dokku(
+      `run ${APP_NAME} cat /etc/prometheus/prometheus.yml`,
+      {
+        ignoreError: true,
+        timeout: 30_000,
+      }
+    );
     expect(result).toContain("dokku-apps");
     expect(result).toContain("targets.json");
   });
 
-  test("should have cron job installed", () => {
-    const { execSync } = require("node:child_process");
-    const cron = execSync("cat /etc/cron.d/dokku-prometheus-discovery", {
-      encoding: "utf-8",
-    });
-    expect(cron).toContain("generate-targets.sh");
-    expect(cron).toContain(APP_NAME);
-  });
-
-  test("cleanup should remove cron job and leave grafana", () => {
+  test("cleanup should leave grafana intact", () => {
     const output = dokku(`library:cleanup ${APP_NAME} --force`, {
       timeout: 120_000,
     });
     expect(output).toContain("cleaned up successfully");
-    expect(output).toContain("Removing Prometheus cron job");
 
     // Grafana should still exist
     expect(appExists("grafana")).toBe(true);

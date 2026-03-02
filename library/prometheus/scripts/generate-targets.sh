@@ -43,5 +43,4 @@ targets="$targets]"
 # Atomic write via temp file
 tmp="$(mktemp "$CONFIG_DIR/.targets.XXXXXX")"
 echo "$targets" >"$tmp"
-chown 65534:65534 "$tmp"
 mv "$tmp" "$TARGETS_FILE"
