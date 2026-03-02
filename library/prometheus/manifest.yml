@@ -11,13 +11,17 @@ library:
 apps:
   prometheus:
     image: prom/prometheus:latest
-    run_as: "65534:65534"
     domains: ["%DOMAIN%"]
     ports:
       http: "80:9090"
     storage:
       - "/var/lib/dokku/data/storage/%APP_NAME%-data:/prometheus"
       - "/var/lib/dokku/data/storage/%APP_NAME%-config:/etc/prometheus"
+    docker_options:
+      deploy:
+        - "--user 0:0"
+      run:
+        - "--user 0:0"
     letsencrypt: true
     healthchecks:
       web:
