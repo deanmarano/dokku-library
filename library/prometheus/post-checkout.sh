@@ -19,10 +19,6 @@ if [[ ! -f "$config_dir/targets.json" ]]; then
   echo "[]" >"$config_dir/targets.json"
 fi
 
-# Ensure Prometheus can write to its data directory (runs as nobody/65534)
-chown -R 65534:65534 "$data_dir" || true
-chown -R 65534:65534 "$config_dir" || true
-
 # Install cron job for target generation
 echo "       Installing service discovery cron job"
 cat >/etc/cron.d/dokku-prometheus-discovery <<CRON

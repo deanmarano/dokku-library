@@ -117,10 +117,14 @@ resolved_yaml="$(resolve_dokkufile_yaml "$manifest" "$app_name" "$manifest_app_n
 storage_count="$(echo "$resolved_yaml" | yq eval ".apps.\"$app_name\".storage | length" - 2>/dev/null || echo 0)"
 if [[ "$storage_count" -gt 0 ]]; then
   echo "-----> Creating storage directories"
+  storage_owner="$(get_manifest_field "$manifest" ".apps.\"$manifest_app_name\".run_as // \"\"" 2>/dev/null || echo "")"
   for ((i = 0; i < storage_count; i++)); do
     mount="$(echo "$resolved_yaml" | yq eval ".apps.\"$app_name\".storage[$i]" -)"
     host_path="$(echo "$mount" | cut -d: -f1)"
     mkdir -p "$host_path"
+    if [[ -n "$storage_owner" ]]; then
+      chown -R "$storage_owner" "$host_path"
+    fi
   done
 fi
 
