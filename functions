@@ -308,11 +308,9 @@ resolve_dokkufile_yaml() {
     # Manifest format: ports: { http: "80:9090" } -> add https: "443:9090"
     local http_port_val
     http_port_val="$(echo "$resolved" | yq eval ".apps.\"$app_name\".ports.http // \"\"" -)"
-    echo "       DEBUG: http_port_val='$http_port_val' app_name='$app_name'" >&2
     if [[ -n "$http_port_val" && "$http_port_val" == *:* ]]; then
       local container_port="${http_port_val#*:}"
       resolved="$(echo "$resolved" | yq eval ".apps.\"$app_name\".ports.https = \"443:$container_port\"" -)"
-      echo "       DEBUG: added https:443:$container_port" >&2
     fi
   fi
 
