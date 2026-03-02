@@ -283,7 +283,7 @@ resolve_dokkufile_yaml() {
   fi
 
   # If DNS plugin is available and --no-dns not set, add dns: true
-  if [[ "$no_dns" != "true" ]] && check_plugin_available "dokku-dns"; then
+  if [[ "$no_dns" != "true" ]] && check_plugin_available "dns"; then
     resolved="$(echo "$resolved" | yq eval ".apps.\"$app_name\".dns = true" -)"
   fi
 
