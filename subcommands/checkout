@@ -62,10 +62,10 @@ passthrough_flags=()
 [[ -n "$auth_service" ]] && passthrough_flags+=("--auth-service=$auth_service")
 ensure_requirements "$manifest" "${passthrough_flags[@]}"
 
-# Check if already installed
+# Check if already installed (re-checkout mode)
+recheckout=false
 if is_app_installed "$app_name"; then
-  echo "!     App '$app_name' is already installed. Use library:cleanup first." >&2
-  exit 1
+  recheckout=true
 fi
 
 # Extract manifest fields
@@ -74,7 +74,11 @@ description="$(get_manifest_field "$manifest" '.library.description')"
 manifest_app_name="$(get_manifest_field "$manifest" '.apps | keys | .[0]')"
 image="$(get_manifest_field "$manifest" ".apps.\"$manifest_app_name\".image")"
 
-echo "=====> Installing $app_name ($description)"
+if [[ "$recheckout" == "true" ]]; then
+  echo "=====> Re-checking out $app_name ($description)"
+else
+  echo "=====> Installing $app_name ($description)"
+fi
 echo "       Image: $image"
 
 # Resolve prompts
@@ -87,8 +91,18 @@ for ((i = 0; i < prompt_count; i++)); do
   question="$(get_manifest_field "$manifest" ".library.prompts[$i].question")"
   default="$(get_manifest_field "$manifest" ".library.prompts[$i].default")"
 
-  # Resolve default value
-  default="$(resolve_domain "$app_name" "$default")"
+  # On re-checkout, use previously saved value as default
+  if [[ "$recheckout" == "true" ]]; then
+    saved_value="$(get_app_state "$app_name" "config/$key")"
+    if [[ -n "$saved_value" ]]; then
+      default="$saved_value"
+    else
+      default="$(resolve_domain "$app_name" "$default")"
+    fi
+  else
+    # Resolve default value
+    default="$(resolve_domain "$app_name" "$default")"
+  fi
 
   # Check if value was passed via --domain flag
   if [[ "$key" == "DOMAIN" && -n "$custom_domain" ]]; then
@@ -106,8 +120,22 @@ done
 domain="${prompt_values[DOMAIN]:-$app_name.$(hostname -f 2>/dev/null || hostname)}"
 
 # Generate secrets for template substitution
-secret="$(generate_secret 32)"
-secret_base64="$(generate_secret_base64 32)"
+if [[ "$recheckout" == "true" ]]; then
+  # Reuse existing secrets to avoid breaking running apps
+  saved_dokkufile="$(get_app_state "$app_name" "DOKKUFILE")"
+  secret="$(echo "$saved_dokkufile" | yq eval ".apps.\"$app_name\".env.SECRET // \"\"" - 2>/dev/null || true)"
+  secret_base64="$(echo "$saved_dokkufile" | yq eval ".apps.\"$app_name\".env.SECRET_BASE64_32 // \"\"" - 2>/dev/null || true)"
+  # Fall back to generating new ones if not found (legacy installs)
+  if [[ -z "$secret" ]]; then
+    secret="$(generate_secret 32)"
+  fi
+  if [[ -z "$secret_base64" ]]; then
+    secret_base64="$(generate_secret_base64 32)"
+  fi
+else
+  secret="$(generate_secret 32)"
+  secret_base64="$(generate_secret_base64 32)"
+fi
 
 # Generate resolved dokkufile YAML
 echo "-----> Generating dokkufile"
@@ -134,10 +162,24 @@ echo "$resolved_yaml" >"$tmpfile"
 # without its database/redis connection vars. We tolerate that and rebuild after.
 has_connection_env="$(get_manifest_field "$manifest" '.library.connection_env.mode // ""')"
 
+# On re-checkout, check if connection env vars are already configured
+skip_connection_env=false
+if [[ "$recheckout" == "true" && -n "$has_connection_env" ]]; then
+  service_type="$(get_manifest_field "$manifest" '.library.connection_env.type // ""')"
+  url_var="DATABASE_URL"
+  if [[ "$service_type" == "redis" ]]; then
+    url_var="REDIS_URL"
+  fi
+  existing_url="$(dokku_cmd config:get "$app_name" "$url_var" 2>/dev/null || true)"
+  if [[ -n "$existing_url" ]]; then
+    skip_connection_env=true
+  fi
+fi
+
 # Run dokkufile apply
 echo "-----> Applying dokkufile"
 apply_failed=false
-if [[ -n "$has_connection_env" ]]; then
+if [[ -n "$has_connection_env" && "$skip_connection_env" != "true" ]]; then
   # Deploy may fail healthchecks — connection env vars are set post-apply
   dokku_cmd dokkufile:apply -f "$tmpfile" || apply_failed=true
 else
@@ -146,10 +188,14 @@ fi
 
 # Post-processing: connection_env
 echo "-----> Post-processing"
-post_process_connection_env "$app_name" "$manifest"
+if [[ "$skip_connection_env" == "true" ]]; then
+  echo "       Connection environment already configured, skipping"
+else
+  post_process_connection_env "$app_name" "$manifest"
+fi
 
-# If connection_env was set, redeploy/restart to pick up the new env vars
-if [[ -n "$has_connection_env" ]]; then
+# If connection_env was set (and not skipped), redeploy/restart to pick up the new env vars
+if [[ -n "$has_connection_env" && "$skip_connection_env" != "true" ]]; then
   if [[ "$apply_failed" == "true" ]]; then
     # Initial deploy failed (healthcheck failed without connection env vars).
     # ps:rebuild won't work because git:from-image didn't store a commit.
@@ -241,5 +287,12 @@ if [[ -f "$post_checkout_script" ]]; then
   source "$post_checkout_script"
 fi
 
-echo "=====> $app_name deployed successfully!"
+# On re-checkout, restart to pick up any env var changes from post-processing
+if [[ "$recheckout" == "true" ]]; then
+  echo "-----> Restarting $app_name to apply changes"
+  dokku_cmd ps:restart "$app_name"
+  echo "=====> $app_name re-checked out successfully!"
+else
+  echo "=====> $app_name deployed successfully!"
+fi
 echo "       URL: https://$domain"
