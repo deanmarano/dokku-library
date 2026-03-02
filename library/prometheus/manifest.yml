@@ -23,6 +23,9 @@ apps:
       run:
         - "--user 0:0"
     letsencrypt: true
+    checks:
+      disabled:
+        - _all_
     healthchecks:
       web:
         - path: /-/healthy
