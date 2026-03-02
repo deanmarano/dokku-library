@@ -167,6 +167,16 @@ describe("manifest validation", () => {
         }
       });
 
+      it("should have http port when letsencrypt is enabled", () => {
+        manifest = loadManifest(appName);
+        const app = Object.values(manifest.apps)[0];
+        if (app.letsencrypt) {
+          expect(app.ports).toBeTruthy();
+          expect(app.ports!.http).toBeTruthy();
+          expect(String(app.ports!.http)).toMatch(/^80:\d+$/);
+        }
+      });
+
       it("should have valid connection_env if present", () => {
         manifest = loadManifest(appName);
         if (manifest.library.connection_env) {
