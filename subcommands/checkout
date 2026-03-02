@@ -287,10 +287,14 @@ if [[ -f "$post_checkout_script" ]]; then
   source "$post_checkout_script"
 fi
 
-# On re-checkout, restart to pick up any env var changes from post-processing
+# On re-checkout, stop+start to pick up any env var changes from post-processing.
+# We use stop+start instead of restart because restart does a rolling deploy
+# (starts new container before stopping old), which fails for apps that hold
+# exclusive file locks (e.g. Prometheus TSDB).
 if [[ "$recheckout" == "true" ]]; then
   echo "-----> Restarting $app_name to apply changes"
-  dokku_cmd ps:restart "$app_name"
+  dokku_cmd ps:stop "$app_name"
+  dokku_cmd ps:start "$app_name"
   echo "=====> $app_name re-checked out successfully!"
 else
   echo "=====> $app_name deployed successfully!"
