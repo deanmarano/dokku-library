@@ -156,7 +156,10 @@ parse_database_url_map() {
 # when invoked from non-shell contexts (e.g., Node.js child_process).
 dokku_cmd() {
   local rc=0
-  "$DOKKU_BIN" "$@" || rc=$?
+  # Unset plugin-specific env vars so child dokku commands (and their plugins)
+  # set their own values. Without this, PLUGIN_DATA_ROOT from the library plugin
+  # leaks into e.g. dns:apps:enable and it reads the wrong state directory.
+  env -u PLUGIN_DATA_ROOT -u PLUGIN_CONFIG_ROOT "$DOKKU_BIN" "$@" || rc=$?
   if [[ $rc -eq 127 ]]; then
     return 0
   fi
