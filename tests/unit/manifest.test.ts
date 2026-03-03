@@ -15,7 +15,7 @@ interface Manifest {
     description: string;
     url: string;
     requires?: string[];
-    prompts: Array<{
+    prompts?: Array<{
       key: string;
       question: string;
       default: string;
@@ -44,7 +44,7 @@ interface Manifest {
       storage?: string[];
       docker_options?: Record<string, string[]>;
       letsencrypt?: boolean;
-      healthchecks?: Record<string, Array<{ path: string; timeout: number }>>;
+      healthchecks?: Record<string, Array<{ path?: string; timeout?: number; uptime?: number }>>;
       scheduler?: Record<string, string>;
       scripts?: Record<string, string>;
     }
@@ -86,8 +86,6 @@ describe("manifest validation", () => {
         expect(manifest).toHaveProperty("library");
         expect(manifest.library).toHaveProperty("description");
         expect(manifest.library).toHaveProperty("url");
-        expect(manifest.library).toHaveProperty("prompts");
-        expect(manifest.library.prompts.length).toBeGreaterThan(0);
       });
 
       it("should have apps section with at least one app", () => {
@@ -146,7 +144,7 @@ describe("manifest validation", () => {
 
       it("should have valid prompt defaults with known placeholders", () => {
         manifest = loadManifest(appName);
-        for (const prompt of manifest.library.prompts) {
+        for (const prompt of manifest.library.prompts || []) {
           if (prompt.default) {
             const matches = prompt.default.match(/%[A-Z_]+%/g) || [];
             for (const match of matches) {
@@ -206,8 +204,12 @@ describe("manifest validation", () => {
             expect(processType).toBeTruthy();
             expect(checks.length).toBeGreaterThan(0);
             for (const check of checks) {
-              expect(check.path).toBeTruthy();
-              expect(check.timeout).toBeGreaterThan(0);
+              if (processType === "uptime") {
+                expect(check.uptime).toBeGreaterThan(0);
+              } else {
+                expect(check.path).toBeTruthy();
+                expect(check.timeout).toBeGreaterThan(0);
+              }
             }
           }
         }

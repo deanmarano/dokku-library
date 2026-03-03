@@ -1,0 +1,32 @@
+library:
+  description: Log aggregation system by Grafana Labs
+  url: https://grafana.com/oss/loki/
+  requires:
+    - grafana
+  prompts:
+    - key: DOMAIN
+      question: Domain for Loki
+      default: loki.%HOSTNAME%
+
+apps:
+  loki:
+    image: grafana/loki:3.6.0
+    domains: ["%DOMAIN%"]
+    ports:
+      http: "80:3100"
+    storage:
+      - "/var/lib/dokku/data/storage/%APP_NAME%-data:/loki"
+      - "/var/lib/dokku/data/storage/%APP_NAME%-config:/etc/loki"
+    docker_options:
+      deploy:
+        - "--user 0:0"
+      run:
+        - "--user 0:0"
+    letsencrypt: true
+    checks:
+      disabled:
+        - _all_
+    healthchecks:
+      web:
+        - path: /ready
+          timeout: 60

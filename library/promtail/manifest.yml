@@ -1,0 +1,23 @@
+library:
+  description: Log collector that ships container logs to Loki
+  url: https://grafana.com/docs/loki/latest/send-data/promtail/
+  requires:
+    - loki
+
+apps:
+  promtail:
+    image: grafana/promtail:3.6.0
+    storage:
+      - "/var/lib/dokku/data/storage/%APP_NAME%-data:/promtail"
+    docker_options:
+      deploy:
+        - "--user 0:0"
+        - "-v /var/run/docker.sock:/var/run/docker.sock"
+        - "-v /var/lib/docker/containers:/var/lib/docker/containers:ro"
+      run:
+        - "--user 0:0"
+        - "-v /var/run/docker.sock:/var/run/docker.sock"
+        - "-v /var/lib/docker/containers:/var/lib/docker/containers:ro"
+    checks:
+      disabled:
+        - _all_
