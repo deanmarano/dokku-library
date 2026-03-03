@@ -3,15 +3,6 @@
 # Runs in the context of the checkout script with access to:
 #   $app_name, $domain, $manifest, $library_app, and all functions.
 
-echo "       Seeding Loki configuration"
-
-config_dir="/var/lib/dokku/data/storage/${app_name}-config"
-
-# Seed initial loki.yml if not already present
-if [[ ! -f "$config_dir/loki.yml" ]]; then
-  cp "$PLUGIN_BASE_PATH/library/loki/loki.yml" "$config_dir/loki.yml"
-fi
-
 # Wire Loki as a Grafana data source
 echo "       Configuring Grafana data source"
 grafana_app="$(find_app_by_manifest "grafana" 2>/dev/null || true)"

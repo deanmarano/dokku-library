@@ -152,6 +152,14 @@ if [[ "$storage_count" -gt 0 ]]; then
   done
 fi
 
+# Run pre-apply hook if it exists (seeds config files before first deploy)
+pre_apply_script="$PLUGIN_BASE_PATH/library/$library_app/pre-apply.sh"
+if [[ -f "$pre_apply_script" ]]; then
+  echo "-----> Running pre-apply hook"
+  # shellcheck source=/dev/null
+  source "$pre_apply_script"
+fi
+
 # Write resolved YAML to temp file
 tmpfile="$(mktemp /tmp/dokkufile-XXXXXX.yml)"
 trap 'rm -f "$tmpfile"' EXIT
