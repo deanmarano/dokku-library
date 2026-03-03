@@ -26,7 +26,7 @@ apps:
     links:
       postgres: db
     env:
-      GF_SERVER_ROOT_URL: "http://%DOMAIN%"
+      GF_SERVER_ROOT_URL: "https://%DOMAIN%"
       GF_DATABASE_TYPE: postgres
       GF_DATABASE_SSL_MODE: disable
       GF_SECURITY_ADMIN_PASSWORD: "%SECRET%"
