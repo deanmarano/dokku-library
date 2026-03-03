@@ -9,6 +9,7 @@ apps:
     image: grafana/promtail:3.6.0
     storage:
       - "/var/lib/dokku/data/storage/%APP_NAME%-data:/promtail"
+      - "/var/lib/dokku/data/storage/%APP_NAME%-config:/etc/promtail"
     docker_options:
       deploy:
         - "--user 0:0"
