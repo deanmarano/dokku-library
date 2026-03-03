@@ -30,13 +30,7 @@ apps:
       GF_DATABASE_TYPE: postgres
       GF_DATABASE_SSL_MODE: disable
       GF_SECURITY_ADMIN_PASSWORD: "%SECRET%"
-    sso_env:
-      GF_AUTH_PROXY_ENABLED: "true"
-      GF_AUTH_PROXY_HEADER_NAME: "Remote-User"
-      GF_AUTH_PROXY_HEADER_PROPERTY: "username"
-      GF_AUTH_PROXY_HEADERS: "Email:Remote-Email Name:Remote-Name"
-      GF_AUTH_PROXY_AUTO_SIGN_UP: "true"
-      GF_AUTH_PROXY_ENABLE_LOGIN_TOKEN: "true"
+    sso_integration: grafana
     storage:
       - "/var/lib/dokku/data/storage/%APP_NAME%-provisioning:/etc/grafana/provisioning"
     ports:
