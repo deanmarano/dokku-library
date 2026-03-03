@@ -88,8 +88,8 @@ if [[ -f "$PLUGIN_DATA_ROOT/apps/$app_name/plugins/dokku-sso" ]]; then
   auth_service="$(cat "$PLUGIN_DATA_ROOT/apps/$app_name/plugins/dokku-sso")"
   echo "       Removing sso: $auth_service"
   if [[ -f "$PLUGIN_DATA_ROOT/apps/$app_name/plugins/dokku-sso-oidc-client" ]]; then
-    # OIDC integration — use disintegrate to clean up client + env vars
-    dokku_cmd sso:disintegrate "$auth_service" "$app_name" 2>/dev/null || true
+    # OIDC integration — tear down client + env vars
+    dokku_cmd sso:oidc:teardown "$auth_service" "$app_name" 2>/dev/null || true
   else
     dokku_cmd sso:unprotect "$app_name" 2>/dev/null || true
   fi
