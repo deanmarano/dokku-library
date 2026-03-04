@@ -50,12 +50,12 @@ test.describe("library:checkout", () => {
     expect(output).toContain(LIBRARY_APP);
   });
 
-  test("should reject duplicate checkout", () => {
+  test("should re-checkout existing app", () => {
     const output = dokku(
       `library:checkout ${LIBRARY_APP} --name=${APP_NAME} --domain=${DOMAIN} --no-ssl --no-auth --non-interactive`,
-      { ignoreError: true }
+      { timeout: 120_000 }
     );
-    expect(output).toContain("already installed");
+    expect(output).toContain("re-checked out successfully");
   });
 
   test("cleanup should work", () => {
