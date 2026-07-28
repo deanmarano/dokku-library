@@ -5,19 +5,46 @@ library:
     - key: DOMAIN
       question: Domain for Nextcloud
       default: nextcloud.%HOSTNAME%
+  # Nextcloud reads discrete env vars, not connection URLs, so both the
+  # database and the cache links have to be expanded after dokkufile apply.
+  connection_env:
+    - service: db
+      type: postgres
+      mode: map
+      map:
+        host: POSTGRES_HOST
+        name: POSTGRES_DB
+        user: POSTGRES_USER
+        password: POSTGRES_PASSWORD
+    # The official image's config/redis.config.php turns REDIS_HOST into
+    # memcache.distributed + memcache.locking. Without these vars a linked
+    # redis service is provisioned but never actually used.
+    - service: redis
+      type: redis
+      mode: map
+      map:
+        host: REDIS_HOST
+        port: REDIS_HOST_PORT
+        password: REDIS_HOST_PASSWORD
 
 services:
   db:
     type: postgres
+  redis:
+    type: redis
 
 apps:
   nextcloud:
-    image: nextcloud:stable
+    # Pinned to a major on purpose. Nextcloud refuses to skip majors
+    # (see OC_VersionCanBeUpgradedFrom), so a floating `stable`/`latest` tag
+    # can produce an image the running instance cannot upgrade into. Bump this
+    # one major at a time and let library:update carry it.
+    image: nextcloud:34
     domains: ["%DOMAIN%"]
     links:
       postgres: db
+      redis: redis
     env:
-      POSTGRES_HOST: ""
       NEXTCLOUD_ADMIN_USER: admin
       NEXTCLOUD_ADMIN_PASSWORD: "%SECRET%"
       NEXTCLOUD_TRUSTED_DOMAINS: "%DOMAIN%"

@@ -102,53 +102,123 @@ generate_secret_base64() {
   openssl rand -base64 "$length"
 }
 
+# Parse a service URL into its components.
+#
+# Sets: _SVCURL_USER _SVCURL_PASSWORD _SVCURL_HOST _SVCURL_PORT _SVCURL_NAME
+# Returns non-zero if the URL has no scheme or no host.
+#
+# Handles both shapes dokku's service plugins emit:
+#   postgres://user:pass@host:5432/dbname   (all components present)
+#   redis://:pass@host:6379                 (empty user, no database name)
+# A regex requiring user and /database silently produced nothing for the
+# latter, which is why redis links could not be mapped to env vars.
+parse_service_url() {
+  local url="$1"
+  _SVCURL_USER=""
+  _SVCURL_PASSWORD=""
+  _SVCURL_HOST=""
+  _SVCURL_PORT=""
+  _SVCURL_NAME=""
+
+  local rest="${url#*://}"
+  [[ "$rest" == "$url" ]] && return 1
+
+  # Drop any query string
+  rest="${rest%%\?*}"
+
+  # Split credentials from host on the LAST '@' so passwords may contain '@'
+  local hostpart="$rest"
+  if [[ "$rest" == *@* ]]; then
+    local creds="${rest%@*}"
+    hostpart="${rest##*@}"
+    _SVCURL_USER="${creds%%:*}"
+    [[ "$creds" == *:* ]] && _SVCURL_PASSWORD="${creds#*:}"
+  fi
+
+  # Split off the database name
+  if [[ "$hostpart" == */* ]]; then
+    _SVCURL_NAME="${hostpart#*/}"
+    hostpart="${hostpart%%/*}"
+  fi
+
+  if [[ "$hostpart" =~ ^(.+):([0-9]+)$ ]]; then
+    _SVCURL_HOST="${BASH_REMATCH[1]}"
+    _SVCURL_PORT="${BASH_REMATCH[2]}"
+  else
+    _SVCURL_HOST="$hostpart"
+  fi
+
+  [[ -n "$_SVCURL_HOST" ]]
+}
+
 # Parse a DATABASE_URL into individual env vars with a given prefix.
 # e.g. parse_database_url "mysql://user:pass@host:3306/dbname" "database__connection"
 # outputs: database__connection__user=user database__connection__password=pass ...
 # Optional third arg: separator (default "__") and fourth arg: case ("lower" or "upper", default "lower")
+# Components absent from the URL are omitted rather than emitted empty.
 parse_database_url() {
   local url="$1"
   local prefix="$2"
   local sep="${3:-__}"
   local case="${4:-lower}"
 
-  # Match: protocol://user:password@host:port/database
-  if [[ "$url" =~ ^[a-z]+://([^:]+):([^@]+)@([^:/]+):([0-9]+)/([^?]+) ]]; then
-    if [[ "$case" == "upper" ]]; then
-      echo "${prefix}${sep}USER=${BASH_REMATCH[1]} ${prefix}${sep}PASSWORD=${BASH_REMATCH[2]} ${prefix}${sep}HOST=${BASH_REMATCH[3]} ${prefix}${sep}PORT=${BASH_REMATCH[4]} ${prefix}${sep}NAME=${BASH_REMATCH[5]}"
+  parse_service_url "$url" || return 0
+
+  local out=""
+  local upper="false"
+  [[ "$case" == "upper" ]] && upper="true"
+
+  local name_key="database"
+  [[ "$upper" == "true" ]] && name_key="NAME"
+
+  local pairs=("user:$_SVCURL_USER" "password:$_SVCURL_PASSWORD" "host:$_SVCURL_HOST" "port:$_SVCURL_PORT" "$name_key:$_SVCURL_NAME")
+  local entry key val
+  for entry in "${pairs[@]}"; do
+    key="${entry%%:*}"
+    val="${entry#*:}"
+    [[ -z "$val" ]] && continue
+    if [[ "$upper" == "true" ]]; then
+      out="$out ${prefix}${sep}$(echo "$key" | tr '[:lower:]' '[:upper:]')=$val"
     else
-      echo "${prefix}${sep}user=${BASH_REMATCH[1]} ${prefix}${sep}password=${BASH_REMATCH[2]} ${prefix}${sep}host=${BASH_REMATCH[3]} ${prefix}${sep}port=${BASH_REMATCH[4]} ${prefix}${sep}database=${BASH_REMATCH[5]}"
+      out="$out ${prefix}${sep}${key}=$val"
     fi
-  fi
+  done
+
+  # Preserve the historical leading-space-free output
+  echo "${out# }"
 }
 
 # Parse a database URL and set env vars according to a connection_env_map.
 # Usage: parse_database_url_map "$url" "$map_yaml"
 # where map_yaml is YAML like: "host: DB_HOST\nport: DB_PORT\n..."
+# Mapped components that are absent from the URL are skipped, so a redis URL
+# with no database name does not emit an empty var.
 parse_database_url_map() {
   local url="$1"
   local map_yaml="$2"
 
-  if [[ "$url" =~ ^[a-z]+://([^:]+):([^@]+)@([^:/]+):([0-9]+)/([^?]+) ]]; then
-    local map_env_args=""
-    local env_var
-    for component in host port user password name host_port; do
-      env_var="$(echo "$map_yaml" | yq eval ".$component // \"\"" -)"
-      if [[ -n "$env_var" ]]; then
-        local val
-        case "$component" in
-          user) val="${BASH_REMATCH[1]}" ;;
-          password) val="${BASH_REMATCH[2]}" ;;
-          host) val="${BASH_REMATCH[3]}" ;;
-          port) val="${BASH_REMATCH[4]}" ;;
-          name) val="${BASH_REMATCH[5]}" ;;
-          host_port) val="${BASH_REMATCH[3]}:${BASH_REMATCH[4]}" ;;
-        esac
-        map_env_args="$map_env_args $env_var=$val"
-      fi
-    done
-    echo "$map_env_args"
-  fi
+  parse_service_url "$url" || return 0
+
+  local map_env_args=""
+  local env_var component val
+  for component in host port user password name host_port; do
+    env_var="$(echo "$map_yaml" | yq eval ".$component // \"\"" -)"
+    [[ -z "$env_var" ]] && continue
+    case "$component" in
+      user) val="$_SVCURL_USER" ;;
+      password) val="$_SVCURL_PASSWORD" ;;
+      host) val="$_SVCURL_HOST" ;;
+      port) val="$_SVCURL_PORT" ;;
+      name) val="$_SVCURL_NAME" ;;
+      host_port)
+        val="$_SVCURL_HOST"
+        [[ -n "$_SVCURL_PORT" ]] && val="$_SVCURL_HOST:$_SVCURL_PORT"
+        ;;
+    esac
+    [[ -z "$val" ]] && continue
+    map_env_args="$map_env_args $env_var=$val"
+  done
+  echo "$map_env_args"
 }
 
 # Run a dokku command, tolerating exit code 127 from plugin hook dispatch.
@@ -324,19 +394,46 @@ resolve_dokkufile_yaml() {
 }
 
 # Post-process connection_env after dokkufile apply.
-# Reads DATABASE_URL or REDIS_URL, parses it, and sets individual env vars.
+#
+# `library.connection_env` may be either a single mapping or a list of them.
+# The list form lets one app derive env vars from more than one service —
+# e.g. Nextcloud needs POSTGRES_* from its database and REDIS_HOST* from its
+# cache. The single-mapping form is unchanged for existing manifests.
 post_process_connection_env() {
   local app_name="$1"
   local manifest="$2"
 
+  local tag
+  tag="$(get_manifest_field "$manifest" '.library.connection_env | tag')"
+
+  case "$tag" in
+    '!!seq')
+      local count i entry
+      count="$(get_manifest_field "$manifest" '.library.connection_env | length')"
+      for ((i = 0; i < count; i++)); do
+        entry="$(get_manifest_field "$manifest" ".library.connection_env[$i]")"
+        apply_connection_env "$app_name" "$entry"
+      done
+      ;;
+    '!!map')
+      apply_connection_env "$app_name" "$(get_manifest_field "$manifest" '.library.connection_env')"
+      ;;
+  esac
+}
+
+# Apply a single connection_env entry (one service -> env vars).
+apply_connection_env() {
+  local app_name="$1"
+  local manifest="$2"
+
   local mode
-  mode="$(get_manifest_field "$manifest" '.library.connection_env.mode // ""')"
+  mode="$(get_manifest_field "$manifest" '.mode // ""')"
   if [[ -z "$mode" ]]; then
     return 0
   fi
 
   local service_type
-  service_type="$(get_manifest_field "$manifest" '.library.connection_env.type // ""')"
+  service_type="$(get_manifest_field "$manifest" '.type // ""')"
 
   # Determine which URL to read based on service type
   local url_var="DATABASE_URL"
@@ -354,10 +451,10 @@ post_process_connection_env() {
   case "$mode" in
     env)
       local env_var
-      env_var="$(get_manifest_field "$manifest" '.library.connection_env.env_var // ""')"
+      env_var="$(get_manifest_field "$manifest" '.env_var // ""')"
       if [[ -n "$env_var" ]]; then
         local scheme
-        scheme="$(get_manifest_field "$manifest" '.library.connection_env.scheme // ""')"
+        scheme="$(get_manifest_field "$manifest" '.scheme // ""')"
         if [[ -n "$scheme" ]]; then
           url="${url/postgres:\/\//${scheme}:\/\/}"
         fi
@@ -367,9 +464,9 @@ post_process_connection_env() {
       ;;
     prefix)
       local prefix sep case_mode
-      prefix="$(get_manifest_field "$manifest" '.library.connection_env.prefix // ""')"
-      sep="$(get_manifest_field "$manifest" '.library.connection_env.separator // "__"')"
-      case_mode="$(get_manifest_field "$manifest" '.library.connection_env.case // "lower"')"
+      prefix="$(get_manifest_field "$manifest" '.prefix // ""')"
+      sep="$(get_manifest_field "$manifest" '.separator // "__"')"
+      case_mode="$(get_manifest_field "$manifest" '.case // "lower"')"
       if [[ -n "$prefix" ]]; then
         echo "       Setting ${prefix}${sep}* from $url_var"
         local db_env_vars
@@ -382,8 +479,8 @@ post_process_connection_env() {
       ;;
     map)
       local map_yaml
-      map_yaml="$(get_manifest_field "$manifest" '.library.connection_env.map')"
-      if [[ -n "$map_yaml" ]]; then
+      map_yaml="$(get_manifest_field "$manifest" '.map')"
+      if [[ -n "$map_yaml" && "$map_yaml" != "null" ]]; then
         echo "       Setting database connection vars from $url_var"
         local map_env_args
         map_env_args="$(parse_database_url_map "$url" "$map_yaml")"

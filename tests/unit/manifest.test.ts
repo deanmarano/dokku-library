@@ -9,6 +9,20 @@ const KNOWN_SERVICE_TYPES = ["postgres", "mariadb", "redis"];
 const KNOWN_PLACEHOLDERS = ["%DOMAIN%", "%APP_NAME%", "%SECRET%", "%SECRET_BASE64_32%", "%HOSTNAME%"];
 const IMAGE_PATTERN = /^[a-z0-9._/-]+:[a-z0-9._-]+$/i;
 const KNOWN_CONNECTION_ENV_MODES = ["env", "prefix", "map"];
+// Components parse_database_url_map understands (see `functions`)
+const KNOWN_MAP_COMPONENTS = ["host", "port", "user", "password", "name", "host_port"];
+
+interface ConnectionEnv {
+  service: string;
+  type: string;
+  mode: string;
+  env_var?: string;
+  scheme?: string;
+  prefix?: string;
+  separator?: string;
+  case?: string;
+  map?: Record<string, string>;
+}
 
 interface Manifest {
   library: {
@@ -20,17 +34,7 @@ interface Manifest {
       question: string;
       default: string;
     }>;
-    connection_env?: {
-      service: string;
-      type: string;
-      mode: string;
-      env_var?: string;
-      scheme?: string;
-      prefix?: string;
-      separator?: string;
-      case?: string;
-      map?: Record<string, string>;
-    };
+    connection_env?: ConnectionEnv | ConnectionEnv[];
   };
   services?: Record<string, { type: string }>;
   apps: Record<
@@ -178,18 +182,33 @@ describe("manifest validation", () => {
       it("should have valid connection_env if present", () => {
         manifest = loadManifest(appName);
         if (manifest.library.connection_env) {
-          const ce = manifest.library.connection_env;
-          expect(KNOWN_SERVICE_TYPES).toContain(ce.type);
-          expect(KNOWN_CONNECTION_ENV_MODES).toContain(ce.mode);
+          // connection_env is either a single mapping or a list of them
+          const entries = Array.isArray(manifest.library.connection_env)
+            ? manifest.library.connection_env
+            : [manifest.library.connection_env];
 
-          if (ce.mode === "env") {
-            expect(ce.env_var).toBeTruthy();
-          }
-          if (ce.mode === "prefix") {
-            expect(ce.prefix).toBeTruthy();
-          }
-          if (ce.mode === "map") {
-            expect(ce.map).toBeTruthy();
+          expect(entries.length).toBeGreaterThan(0);
+
+          for (const ce of entries) {
+            expect(KNOWN_SERVICE_TYPES).toContain(ce.type);
+            expect(KNOWN_CONNECTION_ENV_MODES).toContain(ce.mode);
+
+            if (ce.mode === "env") {
+              expect(ce.env_var).toBeTruthy();
+            }
+            if (ce.mode === "prefix") {
+              expect(ce.prefix).toBeTruthy();
+            }
+            if (ce.mode === "map") {
+              expect(ce.map).toBeTruthy();
+              // Only components the URL parser understands are mappable
+              for (const component of Object.keys(ce.map!)) {
+                expect(KNOWN_MAP_COMPONENTS).toContain(component);
+              }
+            }
+
+            // Every referenced service must actually be declared
+            expect(Object.keys(manifest.services ?? {})).toContain(ce.service);
           }
         }
       });

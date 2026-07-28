@@ -96,7 +96,7 @@ library:
     - key: DOMAIN
       question: Domain for the app
       default: app.%HOSTNAME%
-  connection_env:          # optional — post-deploy DB URL parsing
+  connection_env:          # optional — post-deploy service URL parsing
     service: db
     type: postgres         # postgres | mariadb | redis
     mode: prefix           # prefix | map | env
@@ -135,11 +135,38 @@ apps:
 
 ### Connection Env Modes
 
-When an app needs individual database connection variables instead of a single `DATABASE_URL`:
+When an app needs individual connection variables instead of a single `DATABASE_URL`
+or `REDIS_URL`:
 
 - **`prefix`** — Generates `prefix__host`, `prefix__port`, etc. Configurable separator and case.
 - **`map`** — Maps URL components to arbitrary env var names via a YAML map.
+  Valid components: `host`, `port`, `user`, `password`, `name`, `host_port`.
 - **`env`** — Copies the URL to a different env var name, optionally rewriting the scheme.
+
+The URL read depends on `type`: `redis` reads `REDIS_URL`, everything else reads
+`DATABASE_URL`. Components absent from the URL are skipped rather than set empty —
+dokku's redis URLs have no user or database name.
+
+`connection_env` may also be a **list**, for apps that need variables derived from
+more than one service. Nextcloud is the reference example: it reads discrete
+`POSTGRES_*` vars for its database and `REDIS_HOST*` for its cache.
+
+```yaml
+  connection_env:
+    - service: db
+      type: postgres
+      mode: map
+      map:
+        host: POSTGRES_HOST
+        name: POSTGRES_DB
+    - service: redis
+      type: redis
+      mode: map
+      map:
+        host: REDIS_HOST
+        port: REDIS_HOST_PORT
+        password: REDIS_HOST_PASSWORD
+```
 
 ## Adding a New App
 
