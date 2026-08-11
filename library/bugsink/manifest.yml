@@ -19,7 +19,9 @@ apps:
     env:
       SECRET_KEY: "%SECRET%"
       BASE_URL: "https://%DOMAIN%"
-      CREATE_SUPERUSER: "admin:%SECRET%"
+      # Bugsink validates this as email:password and refuses to start if the
+      # first half is not a valid address, so it cannot just be "admin".
+      CREATE_SUPERUSER: "admin@%DOMAIN%:%SECRET%"
     ports:
       http: "80:8000"
     storage:

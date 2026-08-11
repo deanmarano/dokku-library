@@ -50,20 +50,22 @@ test.describe("library:checkout linkding (with postgres)", () => {
 
   test("should serve linkding content", async () => {
     const url = getAppUrl(APP_NAME);
+    // Follow the whole chain rather than inspecting the first hop: an
+    // unauthenticated visitor is sent to the login page via /bookmarks, so
+    // asserting that the first Location contains "login" only held while
+    // linkding redirected straight there.
     const response = await fetch(url, {
       signal: AbortSignal.timeout(10_000),
-      redirect: "manual",
+      redirect: "follow",
     });
-    // Linkding redirects to /login when unauthenticated
-    expect([200, 301, 302]).toContain(response.status);
-    if (response.status === 200) {
-      const body = await response.text();
-      expect(body.toLowerCase()).toContain("linkding");
-    } else {
-      // Redirect should point to login
-      const location = response.headers.get("location") || "";
-      expect(location).toContain("login");
-    }
+    expect(response.status).toBe(200);
+
+    const body = (await response.text()).toLowerCase();
+    expect(body).toContain("linkding");
+
+    // And it is the login page that an unauthenticated visitor lands on.
+    const landedOn = new URL(response.url).pathname;
+    expect(landedOn.includes("login") || body.includes("login")).toBe(true);
   });
 
   test("cleanup should destroy postgres too", () => {
