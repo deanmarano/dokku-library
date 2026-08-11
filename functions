@@ -321,6 +321,11 @@ resolve_dokkufile_yaml() {
   local secret_base64="$6"
   local no_ssl="$7"
   local no_dns="${8:-false}"
+  # Any remaining args are KEY=VALUE pairs from the manifest's own prompts,
+  # substituted as %KEY%. Without this only %DOMAIN% resolved and every other
+  # prompt reached the app as its literal placeholder.
+  shift 8 2>/dev/null || shift $#
+  local prompt_pairs=("$@")
 
   local resolved
   # Start with the manifest, strip the library section, add version
@@ -389,6 +394,13 @@ resolve_dokkufile_yaml() {
   resolved="${resolved//%APP_NAME%/$app_name}"
   resolved="${resolved//%SECRET%/$secret}"
   resolved="${resolved//%SECRET_BASE64_32%/$secret_base64}"
+
+  local pair key val
+  for pair in "${prompt_pairs[@]}"; do
+    key="${pair%%=*}"
+    val="${pair#*=}"
+    resolved="${resolved//%$key%/$val}"
+  done
 
   echo "$resolved"
 }

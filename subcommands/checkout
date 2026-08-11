@@ -139,7 +139,11 @@ fi
 
 # Generate resolved dokkufile YAML
 echo "-----> Generating dokkufile"
-resolved_yaml="$(resolve_dokkufile_yaml "$manifest" "$app_name" "$manifest_app_name" "$domain" "$secret" "$secret_base64" "$no_ssl" "$no_dns")"
+prompt_args=()
+for key in "${!prompt_values[@]}"; do
+  prompt_args+=("$key=${prompt_values[$key]}")
+done
+resolved_yaml="$(resolve_dokkufile_yaml "$manifest" "$app_name" "$manifest_app_name" "$domain" "$secret" "$secret_base64" "$no_ssl" "$no_dns" "${prompt_args[@]}")"
 
 # Create storage directories before dokkufile apply
 storage_count="$(echo "$resolved_yaml" | yq eval ".apps.\"$app_name\".storage | length" - 2>/dev/null || echo 0)"

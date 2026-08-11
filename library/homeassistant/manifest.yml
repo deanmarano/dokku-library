@@ -1,0 +1,36 @@
+library:
+  description: Open-source home automation platform
+  url: https://www.home-assistant.io
+  prompts:
+    - key: DOMAIN
+      question: Domain for Home Assistant
+      default: homeassistant.%HOSTNAME%
+    - key: TZ
+      question: Timezone
+      default: UTC
+
+apps:
+  homeassistant:
+    # `stable` is the release channel Home Assistant recommends for self-hosting.
+    image: ghcr.io/home-assistant/home-assistant:stable
+    domains: ["%DOMAIN%"]
+    env:
+      TZ: "%TZ%"
+    ports:
+      http: "80:8123"
+    storage:
+      - "/var/lib/dokku/data/storage/homeassistant-%APP_NAME%:/config"
+    # Dokku passes --init by default, which puts tini at PID 1. The image's
+    # s6-overlay entrypoint refuses to run as anything but PID 1
+    # ("s6-overlay-suexec: fatal: can only run as pid 1"), so turn it off.
+    # A `--init=false` docker option does not work here: the scheduler builds
+    # the flag itself, so the scheduler property is the only thing that wins.
+    scheduler:
+      docker_local_init_process: "false"
+    letsencrypt: true
+    healthchecks:
+      web:
+        # Home Assistant does a schema migration on first boot after an upgrade,
+        # which can hold the HTTP listener for well over a minute.
+        - path: /
+          timeout: 180

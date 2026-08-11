@@ -138,10 +138,14 @@ describe("manifest validation", () => {
         manifest = loadManifest(appName);
         const app = Object.values(manifest.apps)[0];
         const env = app.env || {};
+        // A manifest's own prompts define placeholders too: a prompt keyed TZ
+        // is substituted as %TZ%.
+        const promptPlaceholders = (manifest.library.prompts || []).map((p) => `%${p.key}%`);
+        const allowed = [...KNOWN_PLACEHOLDERS, ...promptPlaceholders];
         for (const [, value] of Object.entries(env)) {
           const matches = String(value).match(/%[A-Z_]+%/g) || [];
           for (const match of matches) {
-            expect(KNOWN_PLACEHOLDERS).toContain(match);
+            expect(allowed).toContain(match);
           }
         }
       });
