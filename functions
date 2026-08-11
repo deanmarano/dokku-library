@@ -224,6 +224,92 @@ parse_database_url_map() {
 # Run a dokku command, tolerating exit code 127 from plugin hook dispatch.
 # dokku's plugn trigger mechanism can produce spurious exit 127 errors
 # when invoked from non-shell contexts (e.g., Node.js child_process).
+# Wire up authentication for a freshly checked out app.
+#
+# Extracted so it can be tested: this is the path that decides whether an app
+# ends up behind a login, and a silent failure here leaves it publicly
+# reachable while checkout reports success.
+#
+# Arguments: app_name manifest manifest_app_name auth_service
+setup_app_auth() {
+  local app_name="$1" manifest="$2" manifest_app_name="$3" auth_service="$4"
+  local AUTH_SERVICE sso_link sso_integration sso_env_keys key val
+
+  # An app that was meant to be protected must never finish checkout looking
+  # successful while it is publicly reachable. Anything that would leave it
+  # that way is reported, and is fatal when auth was asked for explicitly.
+  if ! check_plugin_available "sso"; then
+    if [[ -n "$auth_service" ]]; then
+      echo "!     --auth-service=$auth_service was requested, but the sso plugin is not installed" >&2
+      echo "       $app_name is deployed and reachable without authentication." >&2
+      echo "       Install it, then re-run: dokku library:checkout ..." >&2
+      exit 1
+    fi
+    echo "       sso plugin not installed, skipping auth setup"
+  else
+    local available_services
+    available_services="$(dokku_cmd sso:list 2>/dev/null | grep -v '====>' | awk '{print $1}' || true)"
+
+    AUTH_SERVICE="${auth_service:-}"
+    if [[ -z "$AUTH_SERVICE" ]]; then
+      AUTH_SERVICE="$(head -1 <<<"$available_services")"
+    elif ! grep -qxF "$AUTH_SERVICE" <<<"$available_services"; then
+      # A named service that does not exist is a typo, not a reason to deploy
+      # the app without protection.
+      AUTH_SERVICE=""
+    fi
+    if [[ -n "$AUTH_SERVICE" ]]; then
+      # Only sso:link (LDAP) if the manifest explicitly requests it
+      sso_link="$(get_manifest_field "$manifest" ".apps.\"$manifest_app_name\".sso_link // false" 2>/dev/null || echo "false")"
+      if [[ "$sso_link" == "true" ]]; then
+        echo "       Linking LDAP service: $AUTH_SERVICE"
+        if dokku_cmd sso:link "$AUTH_SERVICE" "$app_name"; then
+          set_app_state "$app_name" "plugins/dokku-sso-linked" "true"
+        else
+          echo "!     Warning: sso:link failed; $app_name has no LDAP configuration" >&2
+        fi
+      fi
+
+      # Check for OIDC integration preset
+      sso_integration="$(get_manifest_field "$manifest" ".apps.\"$manifest_app_name\".sso_integration // \"\"" 2>/dev/null || true)"
+      if [[ -n "$sso_integration" ]]; then
+        echo "       Setting up OIDC with preset: $sso_integration"
+        if ! dokku_cmd sso:oidc:setup "$AUTH_SERVICE" "$app_name" --preset="$sso_integration"; then
+          echo "!     sso:oidc:setup failed for $app_name" >&2
+          echo "       The app is deployed and reachable without authentication." >&2
+          exit 1
+        fi
+        set_app_state "$app_name" "plugins/dokku-sso" "$AUTH_SERVICE"
+        set_app_state "$app_name" "plugins/dokku-sso-oidc-client" "$app_name"
+      else
+        echo "       Protecting app with Authelia forward auth"
+        if ! dokku_cmd sso:protect "$app_name"; then
+          echo "!     sso:protect failed for $app_name" >&2
+          echo "       The app is deployed and reachable without authentication." >&2
+          exit 1
+        fi
+        set_app_state "$app_name" "plugins/dokku-sso" "$AUTH_SERVICE"
+
+        # Apply app-specific SSO env vars (e.g. auth proxy headers) if defined
+        sso_env_keys="$(get_manifest_field "$manifest" ".apps.\"$manifest_app_name\".sso_env | keys | .[]" 2>/dev/null || true)"
+        if [[ -n "$sso_env_keys" ]]; then
+          echo "       Setting SSO environment variables"
+          while IFS= read -r key; do
+            val="$(get_manifest_field "$manifest" ".apps.\"$manifest_app_name\".sso_env.\"$key\"")"
+            dokku_cmd config:set --no-restart "$app_name" "$key=$val"
+          done <<<"$sso_env_keys"
+        fi
+      fi
+    elif [[ -n "$auth_service" ]]; then
+      echo "!     --auth-service=$auth_service was requested, but no such auth service exists" >&2
+      echo "       $app_name is deployed and reachable without authentication." >&2
+      exit 1
+    else
+      echo "       No auth service found, skipping auth setup"
+    fi
+  fi
+}
+
 dokku_cmd() {
   local rc=0
   # Unset plugin-specific env vars so child dokku commands (and their plugins)

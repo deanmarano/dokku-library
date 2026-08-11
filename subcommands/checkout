@@ -232,46 +232,7 @@ fi
 
 # Post-processing: auth
 if [[ "$no_auth" != "true" ]]; then
-  if check_plugin_available "sso"; then
-    AUTH_SERVICE="${auth_service:-}"
-    if [[ -z "$AUTH_SERVICE" ]]; then
-      AUTH_SERVICE="$(dokku_cmd sso:list 2>/dev/null | grep -v '====>' | awk '{print $1}' | head -1 || true)"
-    fi
-    if [[ -n "$AUTH_SERVICE" ]]; then
-      # Only sso:link (LDAP) if the manifest explicitly requests it
-      sso_link="$(get_manifest_field "$manifest" ".apps.\"$manifest_app_name\".sso_link // false" 2>/dev/null || echo "false")"
-      if [[ "$sso_link" == "true" ]]; then
-        echo "       Linking LDAP service: $AUTH_SERVICE"
-        dokku_cmd sso:link "$AUTH_SERVICE" "$app_name" || true
-        set_app_state "$app_name" "plugins/dokku-sso-linked" "true"
-      fi
-
-      # Check for OIDC integration preset
-      sso_integration="$(get_manifest_field "$manifest" ".apps.\"$manifest_app_name\".sso_integration // \"\"" 2>/dev/null || true)"
-      if [[ -n "$sso_integration" ]]; then
-        echo "       Setting up OIDC with preset: $sso_integration"
-        dokku_cmd sso:oidc:setup "$AUTH_SERVICE" "$app_name" --preset="$sso_integration" || true
-        set_app_state "$app_name" "plugins/dokku-sso" "$AUTH_SERVICE"
-        set_app_state "$app_name" "plugins/dokku-sso-oidc-client" "$app_name"
-      else
-        echo "       Protecting app with Authelia forward auth"
-        dokku_cmd sso:protect "$app_name" || true
-        set_app_state "$app_name" "plugins/dokku-sso" "$AUTH_SERVICE"
-
-        # Apply app-specific SSO env vars (e.g. auth proxy headers) if defined
-        sso_env_keys="$(get_manifest_field "$manifest" ".apps.\"$manifest_app_name\".sso_env | keys | .[]" 2>/dev/null || true)"
-        if [[ -n "$sso_env_keys" ]]; then
-          echo "       Setting SSO environment variables"
-          while IFS= read -r key; do
-            val="$(get_manifest_field "$manifest" ".apps.\"$manifest_app_name\".sso_env.\"$key\"")"
-            dokku_cmd config:set --no-restart "$app_name" "$key=$val"
-          done <<<"$sso_env_keys"
-        fi
-      fi
-    else
-      echo "       No auth service found, skipping auth setup"
-    fi
-  fi
+  setup_app_auth "$app_name" "$manifest" "$manifest_app_name" "$auth_service"
 fi
 
 # Save state
