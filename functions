@@ -405,6 +405,89 @@ resolve_dokkufile_yaml() {
   echo "$resolved"
 }
 
+# Recover the value a re-checkout must reuse for a secret placeholder
+# (%SECRET% or %SECRET_BASE64_32%) from the saved dokkufile.
+#
+# The saved dokkufile holds rendered values, not placeholders, so the secret
+# is found through whichever env var the manifest templates from it: the
+# template is rendered with everything but the placeholder, and what is left
+# of the saved value between the template's prefix and suffix is the secret.
+# This finds it under any key (Bugsink's SECRET_KEY: "%SECRET%") and inside a
+# larger value (CREATE_SUPERUSER: "admin@%DOMAIN%:%SECRET%"). Looking only at
+# an env var literally named SECRET missed both, so a re-checkout rotated the
+# secret and signed everyone out.
+#
+# Usage: recover_saved_secret <manifest> <saved_yaml> <app_name>
+#          <manifest_app_name> <placeholder> <domain> [KEY=VALUE...]
+# Prints the secret, or nothing when no template yields it.
+recover_saved_secret() {
+  local manifest="$1" saved_yaml="$2" app_name="$3" manifest_app_name="$4"
+  local placeholder="$5" domain="$6"
+  shift 6
+  local prompt_pairs=("$@")
+
+  local keys key template saved prefix suffix rest pair
+  keys="$(echo "$manifest" | yq eval ".apps.\"$manifest_app_name\".env // {} | keys | .[]" - 2>/dev/null || true)"
+  while IFS= read -r key; do
+    [[ -z "$key" ]] && continue
+    template="$(echo "$manifest" | yq eval ".apps.\"$manifest_app_name\".env.\"$key\"" -)"
+    [[ "$template" == *"$placeholder"* ]] || continue
+    # Exactly one occurrence, or prefix/suffix cannot pin it down.
+    rest="${template#*"$placeholder"}"
+    [[ "$rest" == *"$placeholder"* ]] && continue
+
+    template="${template//%DOMAIN%/$domain}"
+    template="${template//%APP_NAME%/$app_name}"
+    for pair in "${prompt_pairs[@]}"; do
+      template="${template//%${pair%%=*}%/${pair#*=}}"
+    done
+    prefix="${template%%"$placeholder"*}"
+    suffix="${template#*"$placeholder"}"
+    # Another placeholder still unresolved (the other secret) would make
+    # prefix or suffix wrong; skip this template.
+    [[ "$prefix$suffix" =~ %[A-Z0-9_]+% ]] && continue
+
+    saved="$(echo "$saved_yaml" | yq eval ".apps.\"$app_name\".env.\"$key\" // \"\"" - 2>/dev/null || true)"
+    [[ -z "$saved" || "$saved" != "$prefix"* || "$saved" != *"$suffix" ]] && continue
+    saved="${saved#"$prefix"}"
+    saved="${saved%"$suffix"}"
+    if [[ -n "$saved" ]]; then
+      echo "$saved"
+      return 0
+    fi
+  done <<<"$keys"
+}
+
+# Mark every live env var the dokkufile does not set as one of its secrets.
+#
+# Some of an app's config is set outside its dokkufile: auth setup adds
+# AUTHELIA_DOMAIN, service links add DATABASE_URL, and people config:set by
+# hand. dokkufile treats an app's `secrets` keys as managed elsewhere: plan
+# leaves them out of env drift and apply neither sets nor unsets them. So
+# listing those keys keeps doctor from calling them drift and doctor:fix from
+# unsetting them, while it still repairs the values the manifest owns.
+#
+# Usage: add_external_env_secrets <saved_yaml> <app_name>; prints the yaml.
+add_external_env_secrets() {
+  local saved_yaml="$1" app_name="$2"
+  local live desired extra key
+  live="$(dokku_cmd config:keys "$app_name" 2>/dev/null || true)"
+  desired="$(echo "$saved_yaml" | yq eval ".apps.\"$app_name\".env // {} | keys | .[]" - 2>/dev/null || true)"
+  extra=()
+  while IFS= read -r key; do
+    [[ -z "$key" || "$key" == DOKKU_* || "$key" == GIT_REV ]] && continue
+    grep -qxF "$key" <<<"$desired" || extra+=("$key")
+  done <<<"$live"
+
+  if [[ ${#extra[@]} -eq 0 ]]; then
+    echo "$saved_yaml"
+    return 0
+  fi
+  local list
+  list="$(printf '"%s",' "${extra[@]}")"
+  echo "$saved_yaml" | yq eval ".apps.\"$app_name\".secrets = ((.apps.\"$app_name\".secrets // []) + [${list%,}] | unique)" -
+}
+
 # Post-process connection_env after dokkufile apply.
 #
 # `library.connection_env` may be either a single mapping or a list of them.

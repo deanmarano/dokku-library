@@ -119,12 +119,18 @@ done
 
 domain="${prompt_values[DOMAIN]:-$app_name.$(hostname -f 2>/dev/null || hostname)}"
 
+# Generate resolved dokkufile YAML
+echo "-----> Generating dokkufile"
+prompt_args=()
+for key in "${!prompt_values[@]}"; do
+  prompt_args+=("$key=${prompt_values[$key]}")
+done
 # Generate secrets for template substitution
 if [[ "$recheckout" == "true" ]]; then
   # Reuse existing secrets to avoid breaking running apps
   saved_dokkufile="$(get_app_state "$app_name" "DOKKUFILE")"
-  secret="$(echo "$saved_dokkufile" | yq eval ".apps.\"$app_name\".env.SECRET // \"\"" - 2>/dev/null || true)"
-  secret_base64="$(echo "$saved_dokkufile" | yq eval ".apps.\"$app_name\".env.SECRET_BASE64_32 // \"\"" - 2>/dev/null || true)"
+  secret="$(recover_saved_secret "$manifest" "$saved_dokkufile" "$app_name" "$manifest_app_name" "%SECRET%" "$domain" "${prompt_args[@]}")"
+  secret_base64="$(recover_saved_secret "$manifest" "$saved_dokkufile" "$app_name" "$manifest_app_name" "%SECRET_BASE64_32%" "$domain" "${prompt_args[@]}")"
   # Fall back to generating new ones if not found (legacy installs)
   if [[ -z "$secret" ]]; then
     secret="$(generate_secret 32)"
@@ -137,12 +143,6 @@ else
   secret_base64="$(generate_secret_base64 32)"
 fi
 
-# Generate resolved dokkufile YAML
-echo "-----> Generating dokkufile"
-prompt_args=()
-for key in "${!prompt_values[@]}"; do
-  prompt_args+=("$key=${prompt_values[$key]}")
-done
 resolved_yaml="$(resolve_dokkufile_yaml "$manifest" "$app_name" "$manifest_app_name" "$domain" "$secret" "$secret_base64" "$no_ssl" "$no_dns" "${prompt_args[@]}")"
 
 # Create storage directories before dokkufile apply

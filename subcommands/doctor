@@ -32,6 +32,10 @@ fi
 
 # Use dokkufile plan to detect drift if saved dokkufile exists
 saved_yaml="$(get_app_state "$app_name" "DOKKUFILE")"
+if [[ -n "$saved_yaml" ]]; then
+  # Config set outside the dokkufile (auth, links, by hand) is not drift.
+  saved_yaml="$(add_external_env_secrets "$saved_yaml" "$app_name")"
+fi
 if [[ -n "$saved_yaml" ]] && check_plugin_available "dokkufile"; then
   tmpfile="$(mktemp /tmp/dokkufile-XXXXXX.yml)"
   echo "$saved_yaml" >"$tmpfile"
