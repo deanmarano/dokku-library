@@ -5,6 +5,12 @@ library:
     - key: DOMAIN
       question: Domain for Bugsink
       default: bugsink.%HOSTNAME%
+    # Apps report errors to Bugsink over a docker network (as
+    # http://<key>@%APP_NAME%.web:8000/<id>), because SSO in front of the
+    # public URL turns their ingest away. Blank attaches no network.
+    - key: NETWORK
+      question: Docker network for apps to reach Bugsink on (blank for none)
+      default: ""
 
 services:
   db:
@@ -22,10 +28,17 @@ apps:
       # Bugsink validates this as email:password and refuses to start if the
       # first half is not a valid address, so it cannot just be "admin".
       CREATE_SUPERUSER: "admin@%DOMAIN%:%SECRET%"
+      # dokku's nginx terminates TLS, so Bugsink sees plain HTTP behind it.
+      BEHIND_HTTPS_PROXY: "true"
+      # The public name, plus the name other containers reach it by on the
+      # network above; Django answers 400 to any other Host.
+      ALLOWED_HOSTS: "%DOMAIN%,%APP_NAME%.web"
     ports:
       http: "80:8000"
     storage:
       - "/var/lib/dokku/data/storage/bugsink-%APP_NAME%/data:/data"
+    network:
+      attach_post_deploy: "%NETWORK%"
     letsencrypt: true
     healthchecks:
       web:

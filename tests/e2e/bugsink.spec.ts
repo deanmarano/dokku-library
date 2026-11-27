@@ -51,6 +51,21 @@ test.describe("library:checkout bugsink (with postgres)", () => {
     expect(reachable).toBe(true);
   });
 
+  test("should accept its public and in-network host names behind the TLS proxy", () => {
+    // Django answers 400 to any Host not listed; apps on a docker network
+    // reach Bugsink as <app>.web, past the SSO on its public URL.
+    const allowed = dokku(`config:get ${APP_NAME} ALLOWED_HOSTS`).trim();
+    expect(allowed).toBe(`${APP_NAME}.test.local,${APP_NAME}.web`);
+    expect(dokku(`config:get ${APP_NAME} BEHIND_HTTPS_PROXY`).trim()).toBe("true");
+  });
+
+  test("should attach no network when the NETWORK prompt is left blank", () => {
+    const report = dokku(`network:report ${APP_NAME} --network-attach-post-deploy`, {
+      ignoreError: true,
+    });
+    expect(report.trim()).toBe("");
+  });
+
   test("cleanup should destroy postgres too", () => {
     const output = dokku(`library:cleanup ${APP_NAME} --force`, {
       timeout: 120_000,
